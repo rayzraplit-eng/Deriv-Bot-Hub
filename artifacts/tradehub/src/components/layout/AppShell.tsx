@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Wallet, Bot, Wrench, BookOpen, Menu } from "lucide-react";
+import { LayoutDashboard, Wallet, Bot, Wrench, BookOpen, Menu, Download, BarChart2, Hand } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useListAccounts } from "@workspace/api-client-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -18,6 +18,12 @@ const NAV_ITEMS = [
   { href: "/journal", label: "Journal", icon: BookOpen },
 ];
 
+const SECTION_ANCHORS = [
+  { hash: "#free-bots", label: "Free Bots", icon: Download },
+  { hash: "#analisis-tool", label: "Analisis Tool", icon: BarChart2 },
+  { hash: "#manual-trading", label: "Manual Trading", icon: Hand },
+];
+
 export function Sidebar({ className = "" }: { className?: string }) {
   const [location] = useLocation();
 
@@ -26,7 +32,7 @@ export function Sidebar({ className = "" }: { className?: string }) {
       <div className="p-6">
         <h1 className="text-xl font-mono font-bold text-primary tracking-tight">TRADE<span className="text-foreground">HUB</span></h1>
       </div>
-      <nav className="flex-1 px-4 space-y-1">
+      <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map((item) => {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
           return (
@@ -37,6 +43,7 @@ export function Sidebar({ className = "" }: { className?: string }) {
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
+                data-testid={`nav-${item.label.toLowerCase()}`}
               >
                 <item.icon className="h-4 w-4" />
                 {item.label}
@@ -44,6 +51,25 @@ export function Sidebar({ className = "" }: { className?: string }) {
             </Link>
           );
         })}
+
+        {location === "/" && (
+          <div className="pt-4 mt-2 border-t border-sidebar-border/60 space-y-1">
+            <div className="px-3 py-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground/70">
+              On this page
+            </div>
+            {SECTION_ANCHORS.map((s) => (
+              <a
+                key={s.hash}
+                href={s.hash}
+                className="flex items-center gap-3 px-3 py-2 rounded-md font-mono text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                data-testid={`anchor-${s.hash.replace("#", "")}`}
+              >
+                <s.icon className="h-3.5 w-3.5" />
+                {s.label}
+              </a>
+            ))}
+          </div>
+        )}
       </nav>
     </div>
   );

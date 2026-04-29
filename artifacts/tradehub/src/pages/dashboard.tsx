@@ -3,10 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { format } from "date-fns";
-import { Activity, ArrowUpRight, ArrowDownRight, Percent, CheckCircle2, XCircle, TrendingUp, BarChart3, Clock, Wallet, ShieldAlert, Zap } from "lucide-react";
+import { Activity, ArrowUpRight, ArrowDownRight, Percent, CheckCircle2, XCircle, TrendingUp, BarChart3, Clock, Wallet, ShieldAlert, Zap, Download, Bot, LineChart as LineChartIcon, Hand, Calculator, BarChart2, Target } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { FreeBotsSection } from "@/components/free-bots-section";
+import { AnalisisToolSection } from "@/components/analisis-tool-section";
+import { ManualTradingSection } from "@/components/manual-trading-section";
 
 export default function Dashboard() {
   const { data: summary, isLoading: isLoadingSummary } = useGetDashboardSummary();
@@ -40,7 +43,7 @@ export default function Dashboard() {
           value={summary?.totalProfit} 
           icon={TrendingUp} 
           isLoading={isLoadingSummary}
-          formatter={(v) => (v >= 0 ? '+' : '') + v.toFixed(2)}
+          formatter={(v: number) => (v >= 0 ? '+' : '') + v.toFixed(2)}
           valueClass={summary && summary.totalProfit >= 0 ? "text-primary" : "text-destructive"}
         />
         <StatsCard 
@@ -48,7 +51,7 @@ export default function Dashboard() {
           value={summary?.winRate} 
           icon={Percent} 
           isLoading={isLoadingSummary}
-          formatter={(v) => v.toFixed(1) + '%'}
+          formatter={(v: number) => v.toFixed(1) + '%'}
         />
         <StatsCard 
           title="Total Trades" 
@@ -263,6 +266,18 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      <div id="free-bots" className="scroll-mt-6 pt-8">
+        <FreeBotsSection />
+      </div>
+
+      <div id="analisis-tool" className="scroll-mt-6 pt-8">
+        <AnalisisToolSection />
+      </div>
+
+      <div id="manual-trading" className="scroll-mt-6 pt-8 pb-12">
+        <ManualTradingSection activeAccount={activeAccount ?? null} />
       </div>
     </div>
   );
