@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "TradeHub - Deriv Companion"
+version = "1.0.0"
+id = "artifacts/tradehub"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20148
+
+[services.development]
+run = "pnpm --filter @workspace/tradehub run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/tradehub", "run", "build" ]
+publicDir = "artifacts/tradehub/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20148"
+BASE_PATH = "/"
