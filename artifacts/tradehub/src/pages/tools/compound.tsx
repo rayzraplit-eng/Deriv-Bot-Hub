@@ -42,6 +42,7 @@ export default function CompoundTool() {
         }, 500);
         return () => clearTimeout(timeoutId);
       }
+      return undefined;
     });
     return () => subscription.unsubscribe();
   }, [form.watch, calculate.mutate]);
