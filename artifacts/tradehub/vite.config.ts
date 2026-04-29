@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+import { VitePWA } from "vite-plugin-pwa";
 
 const rawPort = process.env.PORT;
 
@@ -32,6 +33,57 @@ export default defineConfig({
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),
+    VitePWA({
+      registerType: "autoUpdate",
+      includeAssets: ["favicon.svg", "pwa-icon.svg", "pwa-icon-maskable.svg"],
+      manifest: {
+        id: "tradehub-deriv-companion",
+        name: "TradeHub — Deriv Companion",
+        short_name: "TradeHub",
+        description:
+          "Connect a Deriv account, manage DBot strategies, run trading calculators, and journal trades from a single dark-mode terminal.",
+        start_url: basePath,
+        scope: basePath,
+        display: "standalone",
+        orientation: "any",
+        background_color: "#0a0f0d",
+        theme_color: "#0a0f0d",
+        categories: ["finance", "productivity", "utilities"],
+        icons: [
+          { src: "pwa-icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+          { src: "pwa-icon-maskable.svg", sizes: "any", type: "image/svg+xml", purpose: "maskable" },
+        ],
+      },
+      workbox: {
+        globPatterns: ["**/*.{js,css,html,svg,woff2,png,ico}"],
+        navigateFallback: `${basePath}index.html`.replace(/\/+/g, "/"),
+        navigateFallbackDenylist: [/^\/api\//],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.origin === self.location.origin && url.pathname.startsWith("/api/"),
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "tradehub-api",
+              networkTimeoutSeconds: 5,
+              expiration: { maxEntries: 64, maxAgeSeconds: 60 * 5 },
+            },
+          },
+          {
+            urlPattern: ({ url }) => url.origin === "https://fonts.googleapis.com" || url.origin === "https://fonts.gstatic.com",
+            handler: "CacheFirst",
+            options: {
+              cacheName: "tradehub-fonts",
+              expiration: { maxEntries: 32, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
+        ],
+      },
+      devOptions: {
+        enabled: true,
+        type: "module",
+        navigateFallback: `${basePath}index.html`.replace(/\/+/g, "/"),
+      },
+    }),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [
