@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { LayoutDashboard, Wallet, Bot, Wrench, BookOpen, Menu, Download, BarChart2, Hand } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { InstallPWAButton } from "@/components/install-pwa-button";
 import { useListAccounts } from "@workspace/api-client-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useState } from "react";
@@ -84,7 +85,8 @@ export function Header() {
       <div className="flex items-center gap-4">
         <MobileNav />
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        <InstallPWAButton />
         {activeAccount ? (
           <div className="flex items-center gap-3 px-3 py-1.5 rounded-full bg-muted/50 border border-border">
             <div className={`h-2 w-2 rounded-full ${activeAccount.accountType === 'real' ? 'bg-primary' : 'bg-chart-3'}`} />

@@ -1,15 +1,18 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import type { DerivTickStatus } from "@/hooks/use-deriv-ticks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Hand, ArrowUp, ArrowDown, ShieldAlert, Wallet } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Hand, ArrowUp, ArrowDown, ShieldAlert, Wallet, Wifi, WifiOff, Loader2 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useCreateTrade } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { useDerivTicks } from "@/hooks/use-deriv-ticks";
+import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
 
 type ActiveAccount = {
   loginid: string;
@@ -25,6 +28,8 @@ const SYMBOLS = [
   { id: "R_50", label: "Volatility 50" },
   { id: "R_75", label: "Volatility 75" },
   { id: "R_100", label: "Volatility 100" },
+  { id: "1HZ10V", label: "Volatility 10 (1s)" },
+  { id: "1HZ100V", label: "Volatility 100 (1s)" },
   { id: "BOOM1000", label: "Boom 1000" },
   { id: "CRASH500", label: "Crash 500" },
 ];
@@ -40,6 +45,31 @@ const CONTRACT_TYPES = [
 
 const DURATIONS = [1, 3, 5, 10, 15, 30, 60];
 
+function ConnectionBadge({ status }: { status: DerivTickStatus }) {
+  if (status === "open") {
+    return (
+      <Badge variant="outline" className="font-mono text-[10px] border-primary/40 text-primary bg-primary/10 flex items-center gap-1">
+        <Wifi className="h-3 w-3" />
+        LIVE
+      </Badge>
+    );
+  }
+  if (status === "connecting") {
+    return (
+      <Badge variant="outline" className="font-mono text-[10px] border-chart-3/40 text-chart-3 bg-chart-3/10 flex items-center gap-1">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        CONNECTING
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="font-mono text-[10px] border-destructive/40 text-destructive bg-destructive/10 flex items-center gap-1">
+      <WifiOff className="h-3 w-3" />
+      {status.toUpperCase()}
+    </Badge>
+  );
+}
+
 export function ManualTradingSection({ activeAccount }: { activeAccount: ActiveAccount }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -51,25 +81,10 @@ export function ManualTradingSection({ activeAccount }: { activeAccount: ActiveA
   const [duration, setDuration] = useState<string>("5");
   const [payoutPct, setPayoutPct] = useState<string>("93");
 
-  const [livePrice, setLivePrice] = useState<number>(1234.56);
-  const [priceDir, setPriceDir] = useState<"up" | "down" | "flat">("flat");
-
-  useEffect(() => {
-    const seed = symbol.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
-    setLivePrice(100 + (seed % 200) + Math.random() * 50);
-  }, [symbol]);
-
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setLivePrice((p) => {
-        const drift = (Math.random() - 0.5) * 0.6;
-        const next = Math.max(1, p + drift);
-        setPriceDir(next > p ? "up" : next < p ? "down" : "flat");
-        return next;
-      });
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, []);
+  const { ticks, status, last, direction } = useDerivTicks(symbol, { bufferSize: 60 });
+  const livePrice = last?.quote ?? 0;
+  const pip = last?.pip_size ?? 2;
+  const sparkline = useMemo(() => ticks.map((t, i) => ({ i, v: t.quote })), [ticks]);
 
   const stakeNum = Number(stake) || 0;
   const payoutNum = Number(payoutPct) || 0;
@@ -94,7 +109,7 @@ export function ManualTradingSection({ activeAccount }: { activeAccount: ActiveA
           payout: win ? +(stakeNum + profit).toFixed(2) : 0,
           profit,
           result: win ? "win" : "loss",
-          notes: `Manual ${duration}m trade @ ${livePrice.toFixed(2)}`,
+          notes: `Manual ${duration}m trade @ ${livePrice ? livePrice.toFixed(pip) : "—"}`,
           tradedAt: new Date().toISOString(),
         },
       },
@@ -272,25 +287,43 @@ export function ManualTradingSection({ activeAccount }: { activeAccount: ActiveA
         </Card>
 
         <Card className="border-border shadow-md bg-card/50 backdrop-blur-sm">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
             <CardTitle className="font-mono text-sm tracking-wider text-muted-foreground uppercase">Live Quote</CardTitle>
+            <ConnectionBadge status={status} />
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg border border-border/60 bg-muted/30 p-4 text-center">
               <div className="font-mono text-[11px] uppercase text-muted-foreground tracking-wider">{symbol}</div>
               <div
                 className={`font-mono text-3xl font-bold mt-2 transition-colors ${
-                  priceDir === "up" ? "text-primary" : priceDir === "down" ? "text-destructive" : "text-foreground"
+                  direction === "up" ? "text-primary" : direction === "down" ? "text-destructive" : "text-foreground"
                 }`}
                 data-testid="text-manual-live-price"
               >
-                {livePrice.toFixed(2)}
+                {last ? last.quote.toFixed(pip) : "—"}
               </div>
               <div className="font-mono text-[11px] text-muted-foreground mt-1 flex items-center justify-center gap-1">
-                {priceDir === "up" && <ArrowUp className="h-3 w-3 text-primary" />}
-                {priceDir === "down" && <ArrowDown className="h-3 w-3 text-destructive" />}
-                {priceDir === "flat" && <span className="h-3 w-3" />}
-                live · 1s tick
+                {direction === "up" && <ArrowUp className="h-3 w-3 text-primary" />}
+                {direction === "down" && <ArrowDown className="h-3 w-3 text-destructive" />}
+                {direction === "flat" && <span className="h-3 w-3" />}
+                {last ? `epoch ${last.epoch}` : "waiting for ticks…"}
+              </div>
+              <div className="h-12 mt-3">
+                {sparkline.length > 1 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={sparkline} margin={{ top: 2, right: 0, left: 0, bottom: 2 }}>
+                      <YAxis hide domain={["dataMin", "dataMax"]} />
+                      <Line
+                        type="monotone"
+                        dataKey="v"
+                        stroke={direction === "down" ? "hsl(var(--destructive))" : "hsl(var(--primary))"}
+                        strokeWidth={1.5}
+                        dot={false}
+                        isAnimationActive={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : null}
               </div>
             </div>
 
