@@ -1,1 +1,2 @@
 - [Swipeable tab layout](tabbed-layout.md) — main app is 5-panel horizontal swipe in TabbedApp.tsx, not route-based; sub-pages use SimpleShell in AppShell.tsx
+- [Master Trader bot](master-trader.md) — single DB bot, analysis engine in use-master-trader.ts; hooks must be fixed-count (no loop hooks) for 7 symbols
