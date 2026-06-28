@@ -25,7 +25,9 @@ const SYMBOLS = [
   { id: "CRASH500", label: "Crash 500"           },
 ];
 
-const SAMPLE_SIZES = [120, 240, 500, 1000];
+// Analysis window sizes — controls bias/predictor computation only
+// The 64-tick history grid always uses the last 64 of the full 1000-tick buffer
+const SAMPLE_SIZES = [15, 20, 25, 30, 50, 75, 100, 120, 240, 500, 1000];
 
 type Mode = "over" | "under" | null;
 
@@ -332,21 +334,32 @@ function BiasRow({
 
 export function AnalisisToolSection() {
   const [symbol,  setSymbol]  = useState<string>("R_75");
-  const [sample,  setSample]  = useState<number>(500);
+  // sample controls the analysis window only (bias/predictor/chart)
+  // the 64-tick history grid always reads from the full 1000-tick buffer
+  const [sample,  setSample]  = useState<number>(100);
   const [running, setRunning] = useState<boolean>(true);
   const [mode,    setMode]    = useState<Mode>(null);
 
+  // Always keep 1000 ticks buffered so history is available immediately
   const { ticks, status, last, direction } = useDerivTicks(symbol, {
-    bufferSize: sample,
+    bufferSize: 1000,
     enabled:    running,
   });
 
-  const window = ticks.slice(-sample);
-  const total  = window.length || 1;
+  // ── 64-tick history (independent of sample selection) ──
+  const historyDigits = useMemo(
+    () => ticks.slice(-64).map((t) => lastDigit(t.quote, t.pip_size)),
+    [ticks],
+  );
+
+  // ── Analysis window (respects sample selection) ──
+  const analysisWindow = ticks.slice(-sample);
+  const total          = Math.max(analysisWindow.length, 1);
 
   const digits = useMemo(
-    () => window.map((t) => lastDigit(t.quote, t.pip_size)),
-    [window],
+    () => analysisWindow.map((t) => lastDigit(t.quote, t.pip_size)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [analysisWindow.length, ticks],
   );
 
   const predictors = useMemo(() => computePredictors(digits), [digits]);
@@ -474,33 +487,35 @@ export function AnalisisToolSection() {
           </div>
         </CardHeader>
         <CardContent className="px-4 pb-4 space-y-3">
-          {digits.length === 0 ? (
+          {historyDigits.length === 0 ? (
             <div className="h-24 flex flex-col items-center justify-center text-muted-foreground font-mono text-sm gap-2">
               {status === "connecting" || status === "open" ? (
-                <><Loader2 className="h-5 w-5 animate-spin text-primary" /><span>Buffering ticks…</span></>
+                <><Loader2 className="h-5 w-5 animate-spin text-primary" /><span>Loading history…</span></>
               ) : (
                 <><WifiOff className="h-5 w-5 text-destructive" /><span>WebSocket {status}</span></>
               )}
             </div>
           ) : (
             <>
-              {/* Tick flow strip */}
+              {/* Tick flow strip — uses full buffer newest ticks */}
               <div className="space-y-1">
                 <p className="font-mono text-[9px] text-muted-foreground/50 uppercase tracking-widest">Live flow →</p>
-                <LiveTickFlow digits={digits} mode={mode} predictorDigit={predictorDigit} />
+                <LiveTickFlow digits={historyDigits} mode={mode} predictorDigit={predictorDigit} />
               </div>
 
-              {/* 64-tick grid */}
+              {/* 64-tick grid — always last 64 from full buffer, independent of sample */}
               <div className="space-y-1 pt-1">
                 <div className="flex items-center justify-between">
-                  <p className="font-mono text-[9px] text-muted-foreground/50 uppercase tracking-widest">Digit history (newest → bottom-right)</p>
+                  <p className="font-mono text-[9px] text-muted-foreground/50 uppercase tracking-widest">
+                    Last 64 digits (newest → bottom-right) · {ticks.length} ticks loaded
+                  </p>
                   {mode !== null && predictorDigit !== null && (
                     <span className="font-mono text-[9px] text-pink-400">
                       ■ digit {predictorDigit} = {mode === "over" ? "over 3" : "under 6"} predictor
                     </span>
                   )}
                 </div>
-                <DigitHistoryGrid digits={digits} mode={mode} predictorDigit={predictorDigit} />
+                <DigitHistoryGrid digits={historyDigits} mode={mode} predictorDigit={predictorDigit} />
               </div>
 
               {/* Digit legend */}
@@ -520,11 +535,11 @@ export function AnalisisToolSection() {
           <CardHeader className="pb-2">
             <CardTitle className="font-mono text-sm tracking-wider text-muted-foreground uppercase flex items-center gap-2">
               <BarChart2 className="h-4 w-4" />
-              Digit Distribution · {window.length.toLocaleString()} ticks
+              Digit Distribution · {digits.length.toLocaleString()} ticks (analysis window)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {window.length === 0 ? (
+            {digits.length === 0 ? (
               <div className="h-[220px] flex items-center justify-center text-muted-foreground font-mono text-sm">
                 <Loader2 className="h-5 w-5 animate-spin text-primary mr-2" /> Buffering…
               </div>
@@ -602,7 +617,7 @@ export function AnalisisToolSection() {
               </div>
             </div>
             <div className="text-[11px] text-muted-foreground font-mono pt-2 border-t border-border/40">
-              {window.length.toLocaleString()} / {sample.toLocaleString()} ticks · {running ? "live" : "paused"}
+              {digits.length.toLocaleString()} / {sample.toLocaleString()} ticks analysed · {ticks.length} total loaded · {running ? "live" : "paused"}
             </div>
           </CardContent>
         </Card>

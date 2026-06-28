@@ -1,25 +1,28 @@
 import { useEffect, useRef, useState } from "react";
 
 export type DerivTick = {
-  symbol: string;
-  quote: number;
+  symbol:   string;
+  quote:    number;
   pip_size: number;
-  epoch: number;
+  epoch:    number;
 };
 
 export type DerivTickStatus = "connecting" | "open" | "closed" | "error";
 
 const DERIV_WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089";
 
-type Subscriber = (tick: DerivTick) => void;
+type Subscriber        = (tick: DerivTick) => void;
+type HistorySubscriber = (ticks: DerivTick[]) => void;
+
 type Connection = {
-  ws: WebSocket;
-  subId: string | null;
-  refCount: number;
-  subscribers: Set<Subscriber>;
-  statusSubscribers: Set<(s: DerivTickStatus) => void>;
-  status: DerivTickStatus;
-  reconnectTimer: number | null;
+  ws:                  WebSocket;
+  subId:               string | null;
+  refCount:            number;
+  subscribers:         Set<Subscriber>;
+  historySubscribers:  Set<HistorySubscriber>;
+  statusSubscribers:   Set<(s: DerivTickStatus) => void>;
+  status:              DerivTickStatus;
+  reconnectTimer:      number | null;
 };
 
 const connections = new Map<string, Connection>();
@@ -33,34 +36,59 @@ function openConnection(symbol: string): Connection {
   const ws = new WebSocket(DERIV_WS_URL);
   const conn: Connection = {
     ws,
-    subId: null,
-    refCount: 0,
-    subscribers: new Set(),
-    statusSubscribers: new Set(),
-    status: "connecting",
-    reconnectTimer: null,
+    subId:               null,
+    refCount:            0,
+    subscribers:         new Set(),
+    historySubscribers:  new Set(),
+    statusSubscribers:   new Set(),
+    status:              "connecting",
+    reconnectTimer:      null,
   };
 
   ws.addEventListener("open", () => {
     setStatus(conn, "open");
-    ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
+    // Request history (1000 ticks) AND subscribe to live ticks in one call
+    ws.send(JSON.stringify({
+      ticks_history:    symbol,
+      adjust_start_time: 1,
+      count:            1000,
+      end:              "latest",
+      style:            "ticks",
+      subscribe:        1,
+    }));
   });
 
   ws.addEventListener("message", (event) => {
     try {
       const msg = JSON.parse(event.data as string);
+
+      // Bulk historical ticks (arrives once after subscribe)
+      if (msg?.msg_type === "history" && msg.history) {
+        const pipSize = Number(msg.pip_size ?? 2);
+        const prices  = (msg.history.prices ?? []) as string[];
+        const times   = (msg.history.times  ?? []) as number[];
+        const histTicks: DerivTick[] = prices.map((price, i) => ({
+          symbol,
+          quote:    Number(price),
+          pip_size: pipSize,
+          epoch:    Number(times[i] ?? 0),
+        }));
+        conn.historySubscribers.forEach((cb) => cb(histTicks));
+      }
+
+      // Live tick stream
       if (msg?.msg_type === "tick" && msg.tick) {
         if (msg.subscription?.id) conn.subId = msg.subscription.id;
         const tick: DerivTick = {
-          symbol: msg.tick.symbol,
-          quote: Number(msg.tick.quote),
+          symbol:   msg.tick.symbol,
+          quote:    Number(msg.tick.quote),
           pip_size: Number(msg.tick.pip_size ?? 2),
-          epoch: Number(msg.tick.epoch ?? Math.floor(Date.now() / 1000)),
+          epoch:    Number(msg.tick.epoch ?? Math.floor(Date.now() / 1000)),
         };
         conn.subscribers.forEach((cb) => cb(tick));
       }
     } catch {
-      /* ignore */
+      /* ignore malformed frames */
     }
   });
 
@@ -69,10 +97,11 @@ function openConnection(symbol: string): Connection {
     conn.reconnectTimer = window.setTimeout(() => {
       conn.reconnectTimer = null;
       connections.delete(symbol);
-      if (conn.subscribers.size > 0) {
+      if (conn.subscribers.size > 0 || conn.historySubscribers.size > 0) {
         const next = openConnection(symbol);
         next.refCount = conn.refCount;
         conn.subscribers.forEach((s) => next.subscribers.add(s));
+        conn.historySubscribers.forEach((s) => next.historySubscribers.add(s));
         conn.statusSubscribers.forEach((s) => next.statusSubscribers.add(s));
         connections.set(symbol, next);
       }
@@ -100,10 +129,16 @@ function getConnection(symbol: string): Connection {
   return conn;
 }
 
-function releaseConnection(symbol: string, subscriber: Subscriber, statusCb: (s: DerivTickStatus) => void) {
+function releaseConnection(
+  symbol:    string,
+  subscriber: Subscriber,
+  historyCb:  HistorySubscriber,
+  statusCb:   (s: DerivTickStatus) => void,
+) {
   const conn = connections.get(symbol);
   if (!conn) return;
   conn.subscribers.delete(subscriber);
+  conn.historySubscribers.delete(historyCb);
   conn.statusSubscribers.delete(statusCb);
   conn.refCount = Math.max(0, conn.refCount - 1);
   if (conn.refCount === 0) {
@@ -125,22 +160,30 @@ function releaseConnection(symbol: string, subscriber: Subscriber, statusCb: (s:
 
 export type UseDerivTicksOptions = {
   bufferSize?: number;
-  enabled?: boolean;
+  enabled?:    boolean;
 };
 
 export function useDerivTicks(symbol: string, options: UseDerivTicksOptions = {}) {
   const bufferSize = options.bufferSize ?? 1000;
-  const enabled = options.enabled !== false;
+  const enabled    = options.enabled !== false;
 
-  const [ticks, setTicks] = useState<DerivTick[]>([]);
-  const [status, setStatusState] = useState<DerivTickStatus>("connecting");
-  const bufferRef = useRef<DerivTick[]>([]);
+  const [ticks, setTicks]           = useState<DerivTick[]>([]);
+  const [status, setStatusState]    = useState<DerivTickStatus>("connecting");
+  const bufferRef                   = useRef<DerivTick[]>([]);
 
   useEffect(() => {
     if (!enabled || !symbol) return;
     bufferRef.current = [];
     setTicks([]);
 
+    // Called once with the full history batch
+    const onHistory: HistorySubscriber = (histTicks) => {
+      const capped = histTicks.slice(-bufferSize);
+      bufferRef.current = capped;
+      setTicks([...capped]);
+    };
+
+    // Called for every subsequent live tick
     const onTick: Subscriber = (tick) => {
       if (tick.symbol !== symbol) return;
       const next = [...bufferRef.current, tick];
@@ -153,18 +196,23 @@ export function useDerivTicks(symbol: string, options: UseDerivTicksOptions = {}
 
     const conn = getConnection(symbol);
     conn.subscribers.add(onTick);
+    conn.historySubscribers.add(onHistory);
     conn.statusSubscribers.add(onStatus);
     conn.refCount += 1;
     setStatusState(conn.status);
 
     return () => {
-      releaseConnection(symbol, onTick, onStatus);
+      releaseConnection(symbol, onTick, onHistory, onStatus);
     };
   }, [symbol, enabled, bufferSize]);
 
-  const last = ticks[ticks.length - 1];
-  const prev = ticks[ticks.length - 2];
-  const direction: "up" | "down" | "flat" = !last || !prev ? "flat" : last.quote > prev.quote ? "up" : last.quote < prev.quote ? "down" : "flat";
+  const last      = ticks[ticks.length - 1];
+  const prev      = ticks[ticks.length - 2];
+  const direction: "up" | "down" | "flat" =
+    !last || !prev ? "flat"
+    : last.quote > prev.quote ? "up"
+    : last.quote < prev.quote ? "down"
+    : "flat";
 
   return { ticks, status, last, direction };
 }
