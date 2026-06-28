@@ -1,18 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { DerivTickStatus } from "@/hooks/use-deriv-ticks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Hand, ArrowUp, ArrowDown, ShieldAlert, Wallet, Wifi, WifiOff, Loader2 } from "lucide-react";
+import { Hand, ArrowUp, ArrowDown, ShieldAlert, Wallet } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useCreateTrade } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { useDerivTicks } from "@/hooks/use-deriv-ticks";
-import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
 
 type ActiveAccount = {
   loginid: string;
@@ -45,31 +42,6 @@ const CONTRACT_TYPES = [
 
 const DURATIONS = [1, 3, 5, 10, 15, 30, 60];
 
-function ConnectionBadge({ status }: { status: DerivTickStatus }) {
-  if (status === "open") {
-    return (
-      <Badge variant="outline" className="font-mono text-[10px] border-primary/40 text-primary bg-primary/10 flex items-center gap-1">
-        <Wifi className="h-3 w-3" />
-        LIVE
-      </Badge>
-    );
-  }
-  if (status === "connecting") {
-    return (
-      <Badge variant="outline" className="font-mono text-[10px] border-chart-3/40 text-chart-3 bg-chart-3/10 flex items-center gap-1">
-        <Loader2 className="h-3 w-3 animate-spin" />
-        CONNECTING
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="outline" className="font-mono text-[10px] border-destructive/40 text-destructive bg-destructive/10 flex items-center gap-1">
-      <WifiOff className="h-3 w-3" />
-      {status.toUpperCase()}
-    </Badge>
-  );
-}
-
 export function ManualTradingSection({ activeAccount }: { activeAccount: ActiveAccount }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -81,11 +53,6 @@ export function ManualTradingSection({ activeAccount }: { activeAccount: ActiveA
   const [duration, setDuration] = useState<string>("5");
   const [payoutPct, setPayoutPct] = useState<string>("93");
 
-  const { ticks, status, last, direction } = useDerivTicks(symbol, { bufferSize: 60 });
-  const livePrice = last?.quote ?? 0;
-  const pip = last?.pip_size ?? 2;
-  const sparkline = useMemo(() => ticks.map((t, i) => ({ i, v: t.quote })), [ticks]);
-
   const stakeNum = Number(stake) || 0;
   const payoutNum = Number(payoutPct) || 0;
   const potentialPayout = useMemo(() => stakeNum + (stakeNum * payoutNum) / 100, [stakeNum, payoutNum]);
@@ -93,12 +60,12 @@ export function ManualTradingSection({ activeAccount }: { activeAccount: ActiveA
 
   const balanceOk = !activeAccount || activeAccount.balance >= stakeNum;
 
-  const placeTrade = (resultOverride?: "win" | "loss") => {
+  const placeTrade = () => {
     if (stakeNum <= 0) {
       toast({ title: "Invalid stake", description: "Enter a stake greater than zero.", variant: "destructive" });
       return;
     }
-    const win = resultOverride ? resultOverride === "win" : Math.random() < payoutNum / (payoutNum + 100);
+    const win = Math.random() < payoutNum / (payoutNum + 100);
     const profit = win ? +(stakeNum * (payoutNum / 100)).toFixed(2) : -stakeNum;
     createTrade.mutate(
       {
@@ -109,7 +76,7 @@ export function ManualTradingSection({ activeAccount }: { activeAccount: ActiveA
           payout: win ? +(stakeNum + profit).toFixed(2) : 0,
           profit,
           result: win ? "win" : "loss",
-          notes: `Manual ${duration}m trade @ ${livePrice ? livePrice.toFixed(pip) : "—"}`,
+          notes: `Manual ${duration}m trade (${symbol})`,
           tradedAt: new Date().toISOString(),
         },
       },
@@ -132,9 +99,16 @@ export function ManualTradingSection({ activeAccount }: { activeAccount: ActiveA
     );
   };
 
+  const placeOpposite = () => {
+    const opp =
+      contractType === "CALL" ? "PUT" : contractType === "PUT" ? "CALL" : contractType;
+    setContractType(opp);
+    setTimeout(() => placeTrade(), 0);
+  };
+
   return (
-    <section>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+    <section className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-2xl font-mono font-bold tracking-tight text-foreground flex items-center gap-2">
           <Hand className="h-7 w-7 text-primary" />
           MANUAL TRADING
@@ -151,203 +125,161 @@ export function ManualTradingSection({ activeAccount }: { activeAccount: ActiveA
           </Badge>
         )}
       </div>
-      <p className="text-sm text-muted-foreground font-mono mb-4">
+      <p className="text-sm text-muted-foreground font-mono">
         Place quick CALL/PUT or digit trades. Outcomes are recorded in your journal and update your dashboard stats.
       </p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2 border-border shadow-md bg-card/50 backdrop-blur-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="font-mono text-sm tracking-wider text-muted-foreground uppercase">Order Ticket</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="font-mono text-[11px] uppercase text-muted-foreground tracking-wider">Symbol</Label>
-                <Select value={symbol} onValueChange={setSymbol}>
-                  <SelectTrigger className="h-10 font-mono text-sm" data-testid="select-manual-symbol">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SYMBOLS.map((s) => (
-                      <SelectItem key={s.id} value={s.id} className="font-mono text-sm">
-                        {s.id} — {s.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="font-mono text-[11px] uppercase text-muted-foreground tracking-wider">Contract Type</Label>
-                <Select value={contractType} onValueChange={setContractType}>
-                  <SelectTrigger className="h-10 font-mono text-sm" data-testid="select-manual-contract">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CONTRACT_TYPES.map((c) => (
-                      <SelectItem key={c.id} value={c.id} className="font-mono text-sm">
-                        {c.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="font-mono text-[11px] uppercase text-muted-foreground tracking-wider">
-                  Stake ({activeAccount?.currency ?? "USD"})
-                </Label>
-                <Input
-                  type="number"
-                  min={0.35}
-                  step={0.01}
-                  value={stake}
-                  onChange={(e) => setStake(e.target.value)}
-                  className="h-10 font-mono text-sm"
-                  data-testid="input-manual-stake"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="font-mono text-[11px] uppercase text-muted-foreground tracking-wider">Duration (minutes)</Label>
-                <Select value={duration} onValueChange={setDuration}>
-                  <SelectTrigger className="h-10 font-mono text-sm" data-testid="select-manual-duration">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DURATIONS.map((d) => (
-                      <SelectItem key={d} value={String(d)} className="font-mono text-sm">
-                        {d} {d === 1 ? "minute" : "minutes"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5 md:col-span-2">
-                <Label className="font-mono text-[11px] uppercase text-muted-foreground tracking-wider">Expected Payout %</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={500}
-                  step={1}
-                  value={payoutPct}
-                  onChange={(e) => setPayoutPct(e.target.value)}
-                  className="h-10 font-mono text-sm"
-                  data-testid="input-manual-payout-pct"
-                />
-              </div>
+      <Card className="border-border shadow-md bg-card/50 backdrop-blur-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="font-mono text-sm tracking-wider text-muted-foreground uppercase">Order Ticket</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="font-mono text-[11px] uppercase text-muted-foreground tracking-wider">Symbol</Label>
+              <Select value={symbol} onValueChange={setSymbol}>
+                <SelectTrigger className="h-10 font-mono text-sm" data-testid="select-manual-symbol">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SYMBOLS.map((s) => (
+                    <SelectItem key={s.id} value={s.id} className="font-mono text-sm">
+                      {s.id} — {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            {!balanceOk && (
-              <div className="flex items-center gap-2 p-3 rounded-md border border-destructive/40 bg-destructive/10 font-mono text-xs text-destructive">
-                <ShieldAlert className="h-4 w-4" />
-                Stake exceeds active account balance.
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <Button
-                size="lg"
-                className="h-12 font-mono text-sm bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
-                disabled={createTrade.isPending}
-                onClick={() => placeTrade()}
-                data-testid="button-manual-buy"
-              >
-                <ArrowUp className="h-4 w-4" />
-                BUY {contractType}
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="h-12 font-mono text-sm border-destructive/50 text-destructive hover:bg-destructive/10 gap-2"
-                disabled={createTrade.isPending}
-                onClick={() => {
-                  const opp = contractType === "CALL" ? "PUT" : contractType === "PUT" ? "CALL" : contractType;
-                  setContractType(opp);
-                  setTimeout(() => placeTrade(), 0);
-                }}
-                data-testid="button-manual-sell"
-              >
-                <ArrowDown className="h-4 w-4" />
-                SELL / OPPOSITE
-              </Button>
+            <div className="space-y-1.5">
+              <Label className="font-mono text-[11px] uppercase text-muted-foreground tracking-wider">Contract Type</Label>
+              <Select value={contractType} onValueChange={setContractType}>
+                <SelectTrigger className="h-10 font-mono text-sm" data-testid="select-manual-contract">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CONTRACT_TYPES.map((c) => (
+                    <SelectItem key={c.id} value={c.id} className="font-mono text-sm">
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            {!activeAccount && (
-              <div className="text-center text-[11px] text-muted-foreground font-mono pt-1">
-                <Link href="/accounts" className="text-primary hover:underline">
-                  Connect a Deriv account
-                </Link>{" "}
-                to enable real trading. Right now trades are simulated and recorded to your journal.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-border shadow-md bg-card/50 backdrop-blur-sm">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="font-mono text-sm tracking-wider text-muted-foreground uppercase">Live Quote</CardTitle>
-            <ConnectionBadge status={status} />
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-lg border border-border/60 bg-muted/30 p-4 text-center">
-              <div className="font-mono text-[11px] uppercase text-muted-foreground tracking-wider">{symbol}</div>
-              <div
-                className={`font-mono text-3xl font-bold mt-2 transition-colors ${
-                  direction === "up" ? "text-primary" : direction === "down" ? "text-destructive" : "text-foreground"
-                }`}
-                data-testid="text-manual-live-price"
-              >
-                {last ? last.quote.toFixed(pip) : "—"}
-              </div>
-              <div className="font-mono text-[11px] text-muted-foreground mt-1 flex items-center justify-center gap-1">
-                {direction === "up" && <ArrowUp className="h-3 w-3 text-primary" />}
-                {direction === "down" && <ArrowDown className="h-3 w-3 text-destructive" />}
-                {direction === "flat" && <span className="h-3 w-3" />}
-                {last ? `epoch ${last.epoch}` : "waiting for ticks…"}
-              </div>
-              <div className="h-12 mt-3">
-                {sparkline.length > 1 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={sparkline} margin={{ top: 2, right: 0, left: 0, bottom: 2 }}>
-                      <YAxis hide domain={["dataMin", "dataMax"]} />
-                      <Line
-                        type="monotone"
-                        dataKey="v"
-                        stroke={direction === "down" ? "hsl(var(--destructive))" : "hsl(var(--primary))"}
-                        strokeWidth={1.5}
-                        dot={false}
-                        isAnimationActive={false}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                ) : null}
-              </div>
+            <div className="space-y-1.5">
+              <Label className="font-mono text-[11px] uppercase text-muted-foreground tracking-wider">
+                Stake ({activeAccount?.currency ?? "USD"})
+              </Label>
+              <Input
+                type="number"
+                min={0.35}
+                step={0.01}
+                value={stake}
+                onChange={(e) => setStake(e.target.value)}
+                className="h-10 font-mono text-sm"
+                data-testid="input-manual-stake"
+              />
             </div>
 
-            <div className="space-y-2 font-mono text-xs">
-              <div className="flex items-center justify-between p-2 rounded border border-border/50 bg-muted/20">
-                <span className="text-muted-foreground uppercase tracking-wider">Stake</span>
-                <span className="font-bold">{stakeNum.toFixed(2)}</span>
-              </div>
-              <div className="flex items-center justify-between p-2 rounded border border-primary/30 bg-primary/10">
-                <span className="text-primary uppercase tracking-wider">If Win</span>
-                <span className="font-bold text-primary">+{(potentialPayout - stakeNum).toFixed(2)}</span>
-              </div>
-              <div className="flex items-center justify-between p-2 rounded border border-destructive/30 bg-destructive/10">
-                <span className="text-destructive uppercase tracking-wider">If Loss</span>
-                <span className="font-bold text-destructive">-{potentialLoss.toFixed(2)}</span>
-              </div>
-              <div className="flex items-center justify-between p-2 rounded border border-border/50 bg-muted/20">
-                <span className="text-muted-foreground uppercase tracking-wider">Payout</span>
-                <span className="font-bold">{potentialPayout.toFixed(2)}</span>
-              </div>
+            <div className="space-y-1.5">
+              <Label className="font-mono text-[11px] uppercase text-muted-foreground tracking-wider">Duration (minutes)</Label>
+              <Select value={duration} onValueChange={setDuration}>
+                <SelectTrigger className="h-10 font-mono text-sm" data-testid="select-manual-duration">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DURATIONS.map((d) => (
+                    <SelectItem key={d} value={String(d)} className="font-mono text-sm">
+                      {d} {d === 1 ? "minute" : "minutes"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="font-mono text-[11px] uppercase text-muted-foreground tracking-wider">Expected Payout %</Label>
+              <Input
+                type="number"
+                min={1}
+                max={500}
+                step={1}
+                value={payoutPct}
+                onChange={(e) => setPayoutPct(e.target.value)}
+                className="h-10 font-mono text-sm"
+                data-testid="input-manual-payout-pct"
+              />
+            </div>
+          </div>
+
+          {!balanceOk && (
+            <div className="flex items-center gap-2 p-3 rounded-md border border-destructive/40 bg-destructive/10 font-mono text-xs text-destructive">
+              <ShieldAlert className="h-4 w-4" />
+              Stake exceeds active account balance.
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <Button
+              size="lg"
+              className="h-12 font-mono text-sm bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
+              disabled={createTrade.isPending}
+              onClick={placeTrade}
+              data-testid="button-manual-buy"
+            >
+              <ArrowUp className="h-4 w-4" />
+              BUY {contractType}
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="h-12 font-mono text-sm border-destructive/50 text-destructive hover:bg-destructive/10 gap-2"
+              disabled={createTrade.isPending}
+              onClick={placeOpposite}
+              data-testid="button-manual-sell"
+            >
+              <ArrowDown className="h-4 w-4" />
+              SELL / OPPOSITE
+            </Button>
+          </div>
+
+          {!activeAccount && (
+            <div className="text-center text-[11px] text-muted-foreground font-mono pt-1">
+              <Link href="/accounts" className="text-primary hover:underline">
+                Connect a Deriv account
+              </Link>{" "}
+              to enable real trading. Right now trades are simulated and recorded to your journal.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-border shadow-md bg-card/50 backdrop-blur-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="font-mono text-sm tracking-wider text-muted-foreground uppercase">Trade Summary</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-sm">
+            <div className="flex flex-col items-center p-3 rounded border border-border/50 bg-muted/20 gap-1">
+              <span className="text-muted-foreground uppercase tracking-wider text-[9px]">Stake</span>
+              <span className="font-bold">{stakeNum.toFixed(2)}</span>
+            </div>
+            <div className="flex flex-col items-center p-3 rounded border border-primary/30 bg-primary/10 gap-1">
+              <span className="text-primary uppercase tracking-wider text-[9px]">If Win</span>
+              <span className="font-bold text-primary">+{(potentialPayout - stakeNum).toFixed(2)}</span>
+            </div>
+            <div className="flex flex-col items-center p-3 rounded border border-destructive/30 bg-destructive/10 gap-1">
+              <span className="text-destructive uppercase tracking-wider text-[9px]">If Loss</span>
+              <span className="font-bold text-destructive">-{potentialLoss.toFixed(2)}</span>
+            </div>
+            <div className="flex flex-col items-center p-3 rounded border border-border/50 bg-muted/20 gap-1">
+              <span className="text-muted-foreground uppercase tracking-wider text-[9px]">Payout</span>
+              <span className="font-bold">{potentialPayout.toFixed(2)}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </section>
   );
 }
