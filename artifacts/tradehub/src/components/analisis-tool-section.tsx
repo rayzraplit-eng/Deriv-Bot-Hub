@@ -7,7 +7,6 @@ import {
   TrendingUp, TrendingDown, Zap,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useDerivTicks } from "@/hooks/use-deriv-ticks";
 
 const SYMBOLS = [
@@ -293,6 +292,127 @@ function LiveTickFlow({
   );
 }
 
+type DigitEntry = { digit: string; count: number; pct: number };
+
+function digitRank(digit: string, sortedByPct: DigitEntry[]): number {
+  return sortedByPct.findIndex((d) => d.digit === digit);
+}
+
+/**
+ * Tile colour priority (predictor pink overrides rank colours):
+ *   rank 0 → green (most frequent)
+ *   rank 1 → blue  (second most)
+ *   rank 8 → yellow (second least)
+ *   rank 9 → red   (least frequent)
+ *   else   → muted neutral
+ */
+function digitTileClass(rank: number, isPredictor: boolean): string {
+  if (isPredictor) return "border-pink-500/60 bg-pink-500/15 text-pink-400 ring-1 ring-pink-500/30";
+  switch (rank) {
+    case 0: return "border-green-500/60  bg-green-500/15  text-green-400";
+    case 1: return "border-blue-500/60   bg-blue-500/15   text-blue-400";
+    case 8: return "border-yellow-500/60 bg-yellow-500/15 text-yellow-400";
+    case 9: return "border-destructive/60 bg-destructive/15 text-destructive";
+    default: return "border-border/40 bg-muted/20 text-muted-foreground";
+  }
+}
+
+function digitBarColor(rank: number, isPredictor: boolean): string {
+  if (isPredictor) return "bg-pink-500/50";
+  switch (rank) {
+    case 0: return "bg-green-500/70";
+    case 1: return "bg-blue-500/70";
+    case 8: return "bg-yellow-500/70";
+    case 9: return "bg-destructive/70";
+    default: return "bg-muted-foreground/30";
+  }
+}
+
+function DigitTileGrid({
+  digitData,
+  sortedByPct,
+  mode,
+  overDigit,
+  underDigit,
+}: {
+  digitData: DigitEntry[];
+  sortedByPct: DigitEntry[];
+  mode: Mode;
+  overDigit: number;
+  underDigit: number;
+}) {
+  const maxPct = sortedByPct[0]?.pct ?? 1;
+
+  return (
+    <div className="space-y-3">
+      {/* 10 digit tiles */}
+      <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
+        {digitData.map((d) => {
+          const rank = digitRank(d.digit, sortedByPct);
+          const isPredictor =
+            (mode === "over"  && Number(d.digit) === overDigit)  ||
+            (mode === "under" && Number(d.digit) === underDigit);
+          const tileClass = digitTileClass(rank, isPredictor);
+          const barClass  = digitBarColor(rank, isPredictor);
+          const barWidth  = maxPct > 0 ? (d.pct / maxPct) * 100 : 0;
+
+          return (
+            <div
+              key={d.digit}
+              className={`relative flex flex-col items-center gap-1 rounded-lg border py-3 px-1 font-mono transition-all duration-300 ${tileClass}`}
+            >
+              {/* Digit number */}
+              <span className="text-2xl font-extrabold leading-none">{d.digit}</span>
+
+              {/* Mini fill bar */}
+              <div className="w-full h-1 rounded-full bg-black/20 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${barClass}`}
+                  style={{ width: `${barWidth}%` }}
+                />
+              </div>
+
+              {/* Percentage */}
+              <span className="text-[11px] font-bold tabular-nums">{d.pct.toFixed(1)}%</span>
+
+              {/* Rank badge for top/bottom */}
+              {rank === 0 && (
+                <span className="absolute -top-1.5 -right-1.5 text-[8px] font-bold bg-green-500 text-white rounded-full px-1 leading-4">
+                  #1
+                </span>
+              )}
+              {rank === 1 && (
+                <span className="absolute -top-1.5 -right-1.5 text-[8px] font-bold bg-blue-500 text-white rounded-full px-1 leading-4">
+                  #2
+                </span>
+              )}
+              {rank === 9 && (
+                <span className="absolute -top-1.5 -right-1.5 text-[8px] font-bold bg-destructive text-white rounded-full px-1 leading-4">
+                  #10
+                </span>
+              )}
+              {rank === 8 && (
+                <span className="absolute -top-1.5 -right-1.5 text-[8px] font-bold bg-yellow-500 text-black rounded-full px-1 leading-4">
+                  #9
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Colour legend */}
+      <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] text-muted-foreground pt-1 border-t border-border/30">
+        <span><span className="text-green-400 font-bold">■</span> Most frequent</span>
+        <span><span className="text-blue-400 font-bold">■</span> 2nd most</span>
+        <span><span className="text-yellow-400 font-bold">■</span> 2nd least</span>
+        <span><span className="text-destructive font-bold">■</span> Least frequent</span>
+        {mode !== null && <span><span className="text-pink-400 font-bold">■</span> Predictor digit</span>}
+      </div>
+    </div>
+  );
+}
+
 function BiasRow({
   label, valueA, valueB, labelA, labelB, total,
 }: {
@@ -378,9 +498,6 @@ export function AnalisisToolSection() {
     }));
   }, [digits, total]);
 
-  const maxPct = Math.max(...digitData.map((d) => d.pct));
-  const minPct = Math.min(...digitData.map((d) => d.pct));
-
   const evenCount    = digits.filter((d) => d % 2 === 0).length;
   const oddCount     = total - evenCount;
   const overCount    = digits.filter((d) => d > 4).length;
@@ -389,14 +506,11 @@ export function AnalisisToolSection() {
     ? digits.slice(1).filter((d, i) => d === digits[i]).length
     : 0;
 
-  const barColor = (d: { digit: string; pct: number }) => {
-    const num = Number(d.digit);
-    if (mode === "over"  && num === predictors.overDigit)  return "hsl(330 80% 60%)"; // pink
-    if (mode === "under" && num === predictors.underDigit) return "hsl(330 80% 60%)"; // pink
-    if (d.pct === maxPct) return "hsl(var(--primary))";
-    if (d.pct === minPct) return "hsl(var(--destructive))";
-    return "hsl(var(--muted-foreground))";
-  };
+  // Rank digits by percentage (descending) to assign highlight colours
+  const sortedByPct = useMemo(
+    () => [...digitData].sort((a, b) => b.pct - a.pct),
+    [digitData],
+  );
 
   return (
     <section className="space-y-4">
@@ -535,66 +649,22 @@ export function AnalisisToolSection() {
           <CardHeader className="pb-2">
             <CardTitle className="font-mono text-sm tracking-wider text-muted-foreground uppercase flex items-center gap-2">
               <BarChart2 className="h-4 w-4" />
-              Digit Distribution · {digits.length.toLocaleString()} ticks (analysis window)
+              Digit Distribution · {digits.length.toLocaleString()} ticks
             </CardTitle>
           </CardHeader>
           <CardContent>
             {digits.length === 0 ? (
-              <div className="h-[220px] flex items-center justify-center text-muted-foreground font-mono text-sm">
-                <Loader2 className="h-5 w-5 animate-spin text-primary mr-2" /> Buffering…
+              <div className="h-[180px] flex items-center justify-center text-muted-foreground font-mono text-sm">
+                <Loader2 className="h-5 w-5 animate-spin text-primary mr-2" /> Loading…
               </div>
             ) : (
-              <>
-                <div className="h-[220px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={digitData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                      <XAxis dataKey="digit" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                      <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: "hsl(var(--popover))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontFamily: "monospace" }}
-                        itemStyle={{ color: "hsl(var(--foreground))" }}
-                        labelStyle={{ color: "hsl(var(--muted-foreground))" }}
-                        formatter={(value: number, _name, item: any) => [
-                          `${value}% (${item?.payload?.count ?? 0} ticks)`,
-                          `Digit ${item?.payload?.digit}`,
-                        ]}
-                      />
-                      <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
-                        {digitData.map((d) => (
-                          <Cell key={d.digit} fill={barColor(d)} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-
-                {/* Per-digit summary row */}
-                <div className="grid grid-cols-10 gap-1 mt-3">
-                  {digitData.map((d) => {
-                    const isPredictor =
-                      (mode === "over"  && Number(d.digit) === predictors.overDigit)  ||
-                      (mode === "under" && Number(d.digit) === predictors.underDigit);
-                    return (
-                      <div
-                        key={d.digit}
-                        className={`text-center py-1 rounded font-mono text-xs border transition-all ${
-                          isPredictor
-                            ? "border-pink-500/50 bg-pink-500/15 text-pink-400"
-                            : d.pct === maxPct
-                            ? "border-primary/40 bg-primary/10 text-primary"
-                            : d.pct === minPct
-                            ? "border-destructive/40 bg-destructive/10 text-destructive"
-                            : "border-border/40 bg-muted/30 text-muted-foreground"
-                        }`}
-                      >
-                        <div className="font-bold">{d.digit}</div>
-                        <div className="text-[9px] opacity-80">{d.pct}%</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
+              <DigitTileGrid
+                digitData={digitData}
+                sortedByPct={sortedByPct}
+                mode={mode}
+                overDigit={predictors.overDigit}
+                underDigit={predictors.underDigit}
+              />
             )}
           </CardContent>
         </Card>
