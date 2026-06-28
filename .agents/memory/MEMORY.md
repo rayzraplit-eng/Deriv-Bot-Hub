@@ -1,0 +1,1 @@
+- [Swipeable tab layout](tabbed-layout.md) — main app is 5-panel horizontal swipe in TabbedApp.tsx, not route-based; sub-pages use SimpleShell in AppShell.tsx
