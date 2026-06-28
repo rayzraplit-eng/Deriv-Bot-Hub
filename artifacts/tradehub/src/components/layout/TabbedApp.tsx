@@ -1,16 +1,16 @@
 import { useState, useRef } from "react";
-import { LayoutDashboard, Download, BarChart2, Hand, BookOpen } from "lucide-react";
+import { LayoutDashboard, Brain, BarChart2, Hand, BookOpen } from "lucide-react";
 import { useListAccounts } from "@workspace/api-client-react";
 import { InstallPWAButton } from "@/components/install-pwa-button";
 import Dashboard from "@/pages/dashboard";
 import Journal from "@/pages/journal";
-import { FreeBotsSection } from "@/components/free-bots-section";
+import { MasterTraderPanel } from "@/components/master-trader-panel";
 import { AnalisisToolSection } from "@/components/analisis-tool-section";
 import { ManualTradingSection } from "@/components/manual-trading-section";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "free-bots", label: "Free Bots", icon: Download },
+  { id: "master", label: "Master Bot", icon: Brain },
   { id: "analisis", label: "Analisis", icon: BarChart2 },
   { id: "trading", label: "Trading", icon: Hand },
   { id: "journal", label: "Journal", icon: BookOpen },
@@ -99,8 +99,8 @@ function PanelContent({ id, activeAccount }: { id: TabId; activeAccount: any }) 
   switch (id) {
     case "dashboard":
       return <Dashboard />;
-    case "free-bots":
-      return <FreeBotsSection />;
+    case "master":
+      return <MasterTraderPanel />;
     case "analisis":
       return <AnalisisToolSection />;
     case "trading":
