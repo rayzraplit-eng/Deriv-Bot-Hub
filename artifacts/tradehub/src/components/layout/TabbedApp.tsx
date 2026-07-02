@@ -1,13 +1,15 @@
 import { useState, useRef } from "react";
-import { LayoutDashboard, Brain, BarChart2, Hand, BookOpen, Zap } from "lucide-react";
+import { LayoutDashboard, Brain, BarChart2, Hand, BookOpen, Zap, ChevronDown, ArrowLeftRight } from "lucide-react";
 import { useListAccounts } from "@workspace/api-client-react";
 import { InstallPWAButton } from "@/components/install-pwa-button";
 import Dashboard from "@/pages/dashboard";
 import Journal from "@/pages/journal";
 import { MasterTraderPanel } from "@/components/master-trader-panel";
 import { MatchesFixerInline } from "@/components/matches-fixer-panel";
+import { ReverseOverUnderInline } from "@/components/reverse-over-under-panel";
 import { AnalisisToolSection } from "@/components/analisis-tool-section";
 import { ManualTradingSection } from "@/components/manual-trading-section";
+import { Badge } from "@/components/ui/badge";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -19,43 +21,109 @@ const TABS = [
 
 type TabId = typeof TABS[number]["id"];
 
-type MasterBotId = "master-trader" | "matches-fixer";
+type BotEntry = {
+  id:          string;
+  label:       string;
+  sublabel:    string;
+  badge:       string;
+  badgeCls:    string;
+  icon:        React.ElementType;
+  iconCls:     string;
+  content:     React.ReactNode;
+};
 
-const MASTER_BOTS: { id: MasterBotId; label: string; icon: typeof Brain }[] = [
-  { id: "master-trader",  label: "Master Trader",  icon: Brain },
-  { id: "matches-fixer",  label: "Matches Fixer",  icon: Zap   },
+const BOT_LIST: BotEntry[] = [
+  {
+    id:       "master-trader",
+    label:    "Master Trader",
+    sublabel: "10 markets · bias + reversal signals",
+    badge:    "Signal Bot",
+    badgeCls: "border-primary/40 text-primary bg-primary/10",
+    icon:     Brain,
+    iconCls:  "text-primary",
+    content:  <MasterTraderPanel />,
+  },
+  {
+    id:       "matches-fixer",
+    label:    "Matches Fixer",
+    sublabel: "20-tick leading digit · ×1.3 martingale",
+    badge:    "Live · Matches",
+    badgeCls: "border-chart-3/40 text-chart-3 bg-chart-3/10",
+    icon:     Zap,
+    iconCls:  "text-chart-3",
+    content:  <MatchesFixerInline />,
+  },
+  {
+    id:       "reverse-ou",
+    label:    "Reverse Over/Under",
+    sublabel: "Digit transition · Over 2 & Under 7 entry",
+    badge:    "Live · Digits",
+    badgeCls: "border-purple-500/40 text-purple-400 bg-purple-500/10",
+    icon:     ArrowLeftRight,
+    iconCls:  "text-purple-400",
+    content:  <ReverseOverUnderInline />,
+  },
 ];
 
 function MasterBotPanel() {
-  const [activeBotId, setActiveBotId] = useState<MasterBotId>("master-trader");
+  const [openId, setOpenId] = useState<string | null>("master-trader");
+
+  function toggle(id: string) {
+    setOpenId((prev) => (prev === id ? null : id));
+  }
 
   return (
-    <div className="space-y-4">
-      {/* Bot switcher pill row */}
-      <div className="flex gap-2 p-1 rounded-xl border border-border bg-muted/20 w-fit">
-        {MASTER_BOTS.map((bot) => {
-          const Icon = bot.icon;
-          const isActive = activeBotId === bot.id;
-          return (
+    <div className="space-y-3">
+      {BOT_LIST.map((bot) => {
+        const isOpen = openId === bot.id;
+        const Icon   = bot.icon;
+        return (
+          <div
+            key={bot.id}
+            className={`rounded-xl border transition-colors duration-200 overflow-hidden ${
+              isOpen ? "border-primary/40 bg-card/60" : "border-border/60 bg-card/30"
+            }`}
+          >
+            {/* ── Accordion header ── */}
             <button
-              key={bot.id}
-              onClick={() => setActiveBotId(bot.id)}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg font-mono text-xs font-medium transition-all duration-200 ${
-                isActive
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-              }`}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left"
+              onClick={() => toggle(bot.id)}
             >
-              <Icon className="h-3.5 w-3.5 shrink-0" />
-              {bot.label}
-            </button>
-          );
-        })}
-      </div>
+              <div className={`h-8 w-8 rounded-lg border flex items-center justify-center shrink-0 ${
+                isOpen ? "border-primary/40 bg-primary/10" : "border-border/50 bg-muted/30"
+              }`}>
+                <Icon className={`h-4 w-4 ${isOpen ? bot.iconCls : "text-muted-foreground"}`} />
+              </div>
 
-      {/* Active bot */}
-      {activeBotId === "master-trader" && <MasterTraderPanel />}
-      {activeBotId === "matches-fixer" && <MatchesFixerInline />}
+              <div className="flex-1 min-w-0">
+                <div className="font-mono text-sm font-bold text-foreground leading-none truncate">
+                  {bot.label}
+                </div>
+                <div className="font-mono text-[10px] text-muted-foreground mt-0.5 truncate">
+                  {bot.sublabel}
+                </div>
+              </div>
+
+              <Badge variant="outline" className={`font-mono text-[9px] uppercase shrink-0 ${bot.badgeCls}`}>
+                {bot.badge}
+              </Badge>
+
+              <ChevronDown
+                className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-200 ${
+                  isOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            {/* ── Accordion body ── */}
+            {isOpen && (
+              <div className="px-4 pb-4 pt-1 border-t border-border/30 animate-in fade-in slide-in-from-top-1 duration-200">
+                {bot.content}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -157,9 +225,7 @@ function AccountPill({ account }: { account: any }) {
   }
   return (
     <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/50 border border-border">
-      <div
-        className={`h-2 w-2 rounded-full shrink-0 ${account.accountType === "real" ? "bg-primary" : "bg-chart-3"}`}
-      />
+      <div className={`h-2 w-2 rounded-full shrink-0 ${account.accountType === "real" ? "bg-primary" : "bg-chart-3"}`} />
       <div className="flex flex-col min-w-0">
         <span className="text-[10px] font-mono font-medium leading-none truncate">
           {account.balance.toLocaleString("en-US", { style: "currency", currency: account.currency })}

@@ -3,22 +3,25 @@ import { useMasterTrader, type MarketAnalysis, type SignalType } from "@/hooks/u
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Brain, Wifi, Play, Square, Zap, TrendingUp, TrendingDown,
-  Minus, Clock, CheckCircle2, Loader2,
+  Minus, Clock, CheckCircle2, Loader2, DollarSign,
 } from "lucide-react";
 
 type SignalRecord = {
-  id:               string;
-  symbol:           string;
-  label:            string;
-  signalType:       SignalType;
-  signalLabel:      string;
-  bias:             string;
-  confidence:       number;
+  id:                string;
+  symbol:            string;
+  label:             string;
+  signalType:        SignalType;
+  signalLabel:       string;
+  bias:              string;
+  confidence:        number;
   consecutiveBefore: number;
-  currentDigit:     number | null;
-  timestamp:        number;
+  currentDigit:      number | null;
+  timestamp:         number;
+  stake:             number;
 };
 
 function SignalBadge({ type }: { type: SignalType }) {
@@ -42,19 +45,19 @@ function SignalBadge({ type }: { type: SignalType }) {
 }
 
 function SignalIcon({ type }: { type: SignalType }) {
-  if (type === "OVER4")  return <TrendingUp  className="h-4 w-4 text-primary"      />;
-  if (type === "UNDER5") return <TrendingDown className="h-4 w-4 text-destructive"  />;
-  return                        <Minus        className="h-4 w-4 text-chart-3"      />;
+  if (type === "OVER4")  return <TrendingUp  className="h-4 w-4 text-primary"     />;
+  if (type === "UNDER5") return <TrendingDown className="h-4 w-4 text-destructive" />;
+  return                        <Minus        className="h-4 w-4 text-chart-3"     />;
 }
 
 function timeAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60)  return `${s}s ago`;
+  if (s < 60)   return `${s}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   return `${Math.floor(s / 3600)}h ago`;
 }
 
-function LiveSignalCard({ m }: { m: MarketAnalysis }) {
+function LiveSignalCard({ m, stake }: { m: MarketAnalysis; stake: number }) {
   return (
     <Card className="border-primary/50 bg-primary/5 shadow-lg shadow-primary/10 animate-in fade-in slide-in-from-top-2 duration-400">
       <CardContent className="py-3 px-4">
@@ -72,6 +75,9 @@ function LiveSignalCard({ m }: { m: MarketAnalysis }) {
               <div className="font-mono text-[11px] text-muted-foreground">
                 {m.bias.toUpperCase()} BIAS {m.signal!.confidence.toFixed(0)}% ·{" "}
                 {m.consecutiveBefore} reversal streak · digit {m.currentDigit}
+                {stake > 0 && (
+                  <span className="text-primary ml-2 font-bold">${stake.toFixed(2)}</span>
+                )}
               </div>
             </div>
           </div>
@@ -86,9 +92,7 @@ function HistoryRow({ rec, fresh }: { rec: SignalRecord; fresh: boolean }) {
   return (
     <div
       className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all duration-500 ${
-        fresh
-          ? "border-primary/30 bg-primary/5"
-          : "border-border/40 bg-transparent"
+        fresh ? "border-primary/30 bg-primary/5" : "border-border/40 bg-transparent"
       }`}
     >
       <SignalIcon type={rec.signalType} />
@@ -96,6 +100,9 @@ function HistoryRow({ rec, fresh }: { rec: SignalRecord; fresh: boolean }) {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-mono text-xs font-bold text-foreground">{rec.symbol}</span>
           <SignalBadge type={rec.signalType} />
+          {rec.stake > 0 && (
+            <span className="font-mono text-[10px] text-primary font-bold">${rec.stake.toFixed(2)}</span>
+          )}
         </div>
         <div className="font-mono text-[10px] text-muted-foreground mt-0.5">
           {rec.bias.toUpperCase()} BIAS {rec.confidence.toFixed(0)}% · {rec.consecutiveBefore}-streak · digit {rec.currentDigit ?? "—"}
@@ -113,14 +120,16 @@ export function MasterTraderPanel() {
   const { markets, signals, readyCount, liveCount } = useMasterTrader();
   const total = markets.length;
 
-  const [running, setRunning]     = useState(false);
-  const [history, setHistory]     = useState<SignalRecord[]>([]);
-  const [freshIds, setFreshIds]   = useState<Set<string>>(new Set());
+  const [running,   setRunning]   = useState(false);
+  const [stakeStr,  setStakeStr]  = useState("1.00");
+  const [history,   setHistory]   = useState<SignalRecord[]>([]);
+  const [freshIds,  setFreshIds]  = useState<Set<string>>(new Set());
   const seenKeys                  = useRef<Set<string>>(new Set());
   const bufferingCount            = markets.filter((m) => m.tickCount < 100 && m.status === "open").length;
   const isBuffering               = running && readyCount < total;
 
-  // Detect new signals when bot is running and push to history
+  const stake = parseFloat(stakeStr) || 0;
+
   useEffect(() => {
     if (!running) return;
     for (const m of signals) {
@@ -130,22 +139,22 @@ export function MasterTraderPanel() {
       seenKeys.current.add(key);
 
       const rec: SignalRecord = {
-        id:               key,
-        symbol:           m.symbol,
-        label:            m.label,
-        signalType:       m.signal.type,
-        signalLabel:      m.signal.label,
-        bias:             m.bias,
-        confidence:       m.signal.confidence,
+        id:                key,
+        symbol:            m.symbol,
+        label:             m.label,
+        signalType:        m.signal.type,
+        signalLabel:       m.signal.label,
+        bias:              m.bias,
+        confidence:        m.signal.confidence,
         consecutiveBefore: m.consecutiveBefore,
-        currentDigit:     m.currentDigit,
-        timestamp:        Date.now(),
+        currentDigit:      m.currentDigit,
+        timestamp:         Date.now(),
+        stake,
       };
 
       setHistory((prev) => [rec, ...prev].slice(0, 30));
       setFreshIds((prev) => new Set(prev).add(key));
 
-      // Un-highlight after 8 seconds
       setTimeout(() => {
         setFreshIds((prev) => {
           const next = new Set(prev);
@@ -154,17 +163,12 @@ export function MasterTraderPanel() {
         });
       }, 8000);
     }
-  }, [signals, running]);
+  }, [signals, running, stake]);
 
-  function handleStop() {
-    setRunning(false);
-  }
-
-  // ── IDLE SCREEN ───────────────────────────────────────────────────────────
+  // ── IDLE SCREEN ─────────────────────────────────────────────────────────────
   if (!running) {
     return (
-      <section className="flex flex-col items-center justify-center min-h-[70vh] gap-6 px-4 animate-in fade-in duration-500">
-        {/* Icon */}
+      <section className="flex flex-col items-center justify-center min-h-[55vh] gap-5 px-4 animate-in fade-in duration-500">
         <div className="relative">
           <div className="h-20 w-20 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
             <Brain className="h-10 w-10 text-primary" />
@@ -174,18 +178,14 @@ export function MasterTraderPanel() {
           </span>
         </div>
 
-        {/* Title */}
         <div className="text-center space-y-2">
-          <h2 className="font-mono text-2xl font-bold tracking-tight text-foreground">
-            MASTER TRADER
-          </h2>
+          <h2 className="font-mono text-2xl font-bold tracking-tight text-foreground">MASTER TRADER</h2>
           <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
-            Silently monitors <span className="text-foreground font-medium">all 10 volatility markets</span> using a 100-tick bias window. Only alerts you when a valid reversal entry signal is detected.
+            Silently monitors <span className="text-foreground font-medium">all 10 volatility markets</span> using a 100-tick bias window.
           </p>
         </div>
 
-        {/* Strategy summary */}
-        <div className="w-full max-w-sm space-y-1.5 font-mono text-[11px]">
+        <div className="w-full max-w-xs space-y-1.5 font-mono text-[11px]">
           <div className="flex gap-2 items-start">
             <TrendingUp className="h-3.5 w-3.5 text-primary shrink-0 mt-px" />
             <span className="text-muted-foreground"><span className="text-primary font-bold">OVER 4</span> — ≥75% over bias · 2+ under streak · current ≥5</span>
@@ -204,13 +204,30 @@ export function MasterTraderPanel() {
           </div>
         </div>
 
-        {/* Markets status */}
+        {/* ── Stake input ── */}
+        <div className="w-full max-w-xs space-y-1.5">
+          <Label className="font-mono text-xs text-muted-foreground uppercase flex items-center gap-1.5">
+            <DollarSign className="h-3.5 w-3.5" /> Stake per Signal ($)
+          </Label>
+          <Input
+            type="number"
+            min="0.35"
+            step="0.01"
+            placeholder="e.g. 1.00"
+            value={stakeStr}
+            onChange={(e) => setStakeStr(e.target.value)}
+            className="font-mono text-xs h-8 border-border/60 max-w-xs"
+          />
+          <p className="font-mono text-[10px] text-muted-foreground">
+            Shown on each signal as a trade suggestion.
+          </p>
+        </div>
+
         <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
           <Wifi className="h-3.5 w-3.5 text-primary" />
           <span>{liveCount}/{total} markets connected</span>
         </div>
 
-        {/* Run button */}
         <Button
           size="lg"
           className="gap-2 font-mono font-bold tracking-wider px-10 h-12 text-base"
@@ -229,12 +246,11 @@ export function MasterTraderPanel() {
     );
   }
 
-  // ── RUNNING SCREEN ────────────────────────────────────────────────────────
+  // ── RUNNING SCREEN ──────────────────────────────────────────────────────────
   const activeSignals = signals.filter((m) => m.signal !== null);
 
   return (
     <section className="space-y-4 animate-in fade-in duration-400">
-
       {/* Header bar */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2.5">
@@ -243,36 +259,32 @@ export function MasterTraderPanel() {
             <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary animate-ping" />
           </div>
           <div>
-            <h2 className="font-mono text-base font-bold tracking-tight text-foreground leading-none">
-              MASTER TRADER
-            </h2>
+            <h2 className="font-mono text-base font-bold tracking-tight text-foreground leading-none">MASTER TRADER</h2>
             <p className="font-mono text-[10px] text-muted-foreground mt-0.5">
               {isBuffering
                 ? `Buffering ticks… ${readyCount}/${total} markets ready`
                 : `${readyCount}/${total} markets ready · scanning`}
+              {stake > 0 && <span className="text-primary ml-2 font-bold">· ${stake.toFixed(2)}/signal</span>}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="font-mono text-[10px] border-primary/40 text-primary bg-primary/10 gap-1">
-            <Wifi className="h-3 w-3" />
-            {liveCount}/{total}
+            <Wifi className="h-3 w-3" /> {liveCount}/{total}
           </Badge>
           {activeSignals.length > 0 && (
             <Badge variant="outline" className="font-mono text-[10px] border-chart-3/60 text-chart-3 bg-chart-3/10 gap-1 animate-pulse">
-              <Zap className="h-3 w-3" />
-              {activeSignals.length} signal{activeSignals.length > 1 ? "s" : ""}
+              <Zap className="h-3 w-3" /> {activeSignals.length} signal{activeSignals.length > 1 ? "s" : ""}
             </Badge>
           )}
           <Button
             variant="outline"
             size="sm"
             className="gap-1.5 font-mono text-xs border-destructive/40 text-destructive hover:bg-destructive/10"
-            onClick={handleStop}
+            onClick={() => setRunning(false)}
           >
-            <Square className="h-3.5 w-3.5" />
-            Stop
+            <Square className="h-3.5 w-3.5" /> Stop
           </Button>
         </div>
       </div>
@@ -294,7 +306,6 @@ export function MasterTraderPanel() {
                     style={{ width: `${(readyCount / total) * 100}%` }}
                   />
                 </div>
-                {/* Per-market mini status */}
                 <div className="flex flex-wrap gap-1 pt-0.5">
                   {markets.map((m) => (
                     <span
@@ -317,19 +328,15 @@ export function MasterTraderPanel() {
         </Card>
       )}
 
-      {/* Active live signals */}
       {activeSignals.length > 0 && (
         <div className="space-y-2">
-          <p className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider px-0.5">
-            ⚡ Live Signals
-          </p>
+          <p className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider px-0.5">⚡ Live Signals</p>
           {activeSignals.map((m) => (
-            <LiveSignalCard key={m.symbol} m={m} />
+            <LiveSignalCard key={m.symbol} m={m} stake={stake} />
           ))}
         </div>
       )}
 
-      {/* Waiting state (no active signals, fully ready) */}
       {activeSignals.length === 0 && readyCount === total && (
         <Card className="border-border/30 bg-muted/5">
           <CardContent className="py-8 px-4 flex flex-col items-center gap-3 text-center">
@@ -344,13 +351,10 @@ export function MasterTraderPanel() {
         </Card>
       )}
 
-      {/* Signal history */}
       {history.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between px-0.5">
-            <p className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
-              Signal History
-            </p>
+            <p className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">Signal History</p>
             <span className="font-mono text-[10px] text-muted-foreground/50">{history.length} total</span>
           </div>
           <div className="space-y-1.5">
@@ -361,7 +365,6 @@ export function MasterTraderPanel() {
         </div>
       )}
 
-      {/* Empty history while running */}
       {history.length === 0 && readyCount === total && activeSignals.length === 0 && (
         <div className="text-center font-mono text-[11px] text-muted-foreground/40 py-4">
           No signals yet · history will appear here
