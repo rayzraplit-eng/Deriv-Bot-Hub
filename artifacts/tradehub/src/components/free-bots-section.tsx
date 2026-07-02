@@ -1,11 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bot, Download, Star, Zap, TrendingUp, Shield } from "lucide-react";
+import { Bot, Download, Star, Zap, TrendingUp, Shield, Radio } from "lucide-react";
 import { useImportBot } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { MatchesFixerPanel } from "@/components/matches-fixer-panel";
 
 type FreeBot = {
   name: string;
@@ -118,6 +119,7 @@ export function FreeBotsSection() {
   const importBot = useImportBot();
   const queryClient = useQueryClient();
   const [importingName, setImportingName] = useState<string | null>(null);
+  const [fixerOpen, setFixerOpen] = useState(false);
 
   const handleImport = (bot: FreeBot) => {
     setImportingName(bot.name);
@@ -166,7 +168,7 @@ export function FreeBotsSection() {
           FREE BOTS
         </h2>
         <Badge variant="outline" className="font-mono text-[10px] border-primary/40 text-primary bg-primary/10">
-          {FREE_BOTS.length} AVAILABLE
+          {FREE_BOTS.length + 1} AVAILABLE
         </Badge>
       </div>
       <p className="text-sm text-muted-foreground font-mono mb-4">
@@ -232,7 +234,56 @@ export function FreeBotsSection() {
             </CardContent>
           </Card>
         ))}
+
+        {/* ── Matches Fixer — Live Bot card ── */}
+        <Card className="border-primary/30 shadow-md bg-card/50 backdrop-blur-sm hover:border-primary/60 transition-colors relative group overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/8 to-transparent pointer-events-none" />
+          <div className="absolute top-3 right-3 h-2 w-2 rounded-full bg-primary animate-ping" />
+          <CardHeader className="pb-3 relative z-10">
+            <div className="flex items-start justify-between gap-2">
+              <CardTitle className="font-mono text-sm leading-tight">Matches Fixer</CardTitle>
+              <Badge variant="outline" className="font-mono text-[10px] uppercase border-primary/50 text-primary bg-primary/10 shrink-0">
+                Live
+              </Badge>
+            </div>
+            <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground font-mono">
+              <span className="flex items-center gap-1">
+                <Star className="h-3 w-3 fill-chart-3 text-chart-3" />
+                4.8
+              </span>
+              <span className="flex items-center gap-1">
+                <Radio className="h-3 w-3 text-primary" />
+                Real-time
+              </span>
+              <span className="text-muted-foreground/70">Digits</span>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3 relative z-10">
+            <p className="text-xs text-muted-foreground leading-relaxed min-h-[40px]">
+              Detects leading digit shifts over 20 ticks, then trades Matches on the new dominant digit with ×1.3 martingale. Stops on first win or max losses.
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {["matches", "digits", "martingale", "live", "auto-stop"].map((t) => (
+                <Badge key={t} variant="outline" className="font-mono text-[9px] px-1.5 py-0 h-4 border-primary/30 text-primary/70 uppercase">
+                  {t}
+                </Badge>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                size="sm"
+                className="flex-1 font-mono text-xs h-8"
+                onClick={() => setFixerOpen(true)}
+              >
+                <Zap className="h-3 w-3 mr-1" />
+                Launch Bot
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      <MatchesFixerPanel open={fixerOpen} onClose={() => setFixerOpen(false)} />
     </section>
   );
 }
