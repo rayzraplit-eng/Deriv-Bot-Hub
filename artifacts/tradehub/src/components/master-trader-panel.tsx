@@ -168,41 +168,8 @@ export function MasterTraderPanel() {
   // ── IDLE SCREEN ─────────────────────────────────────────────────────────────
   if (!running) {
     return (
-      <section className="flex flex-col items-center justify-center min-h-[55vh] gap-5 px-4 animate-in fade-in duration-500">
-        <div className="relative">
-          <div className="h-20 w-20 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-            <Brain className="h-10 w-10 text-primary" />
-          </div>
-          <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-muted border border-border flex items-center justify-center">
-            <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />
-          </span>
-        </div>
-
-        <div className="text-center space-y-2">
-          <h2 className="font-mono text-2xl font-bold tracking-tight text-foreground">MASTER TRADER</h2>
-          <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
-            Silently monitors <span className="text-foreground font-medium">all 10 volatility markets</span> using a 100-tick bias window.
-          </p>
-        </div>
-
-        <div className="w-full max-w-xs space-y-1.5 font-mono text-[11px]">
-          <div className="flex gap-2 items-start">
-            <TrendingUp className="h-3.5 w-3.5 text-primary shrink-0 mt-px" />
-            <span className="text-muted-foreground"><span className="text-primary font-bold">OVER 4</span> — ≥75% over bias · 2+ under streak · current ≥5</span>
-          </div>
-          <div className="flex gap-2 items-start">
-            <TrendingDown className="h-3.5 w-3.5 text-destructive shrink-0 mt-px" />
-            <span className="text-muted-foreground"><span className="text-destructive font-bold">UNDER 5</span> — ≥75% under bias · 2+ over streak · current ≤4</span>
-          </div>
-          <div className="flex gap-2 items-start">
-            <Minus className="h-3.5 w-3.5 text-chart-3 shrink-0 mt-px" />
-            <span className="text-muted-foreground"><span className="text-chart-3 font-bold">EVEN</span> — ≥75% even bias · 3+ odd streak · current even</span>
-          </div>
-          <div className="flex gap-2 items-start">
-            <Minus className="h-3.5 w-3.5 text-purple-400 shrink-0 mt-px" />
-            <span className="text-muted-foreground"><span className="text-purple-400 font-bold">ODD</span> — ≥75% odd bias · 3+ even streak · current odd</span>
-          </div>
-        </div>
+      <section className="flex flex-col items-center justify-center min-h-[40vh] gap-5 px-4 animate-in fade-in duration-500">
+        <h2 className="font-mono text-2xl font-bold tracking-tight text-foreground">MASTER TRADER</h2>
 
         {/* ── Stake input ── */}
         <div className="w-full max-w-xs space-y-1.5">
@@ -216,16 +183,8 @@ export function MasterTraderPanel() {
             placeholder="e.g. 1.00"
             value={stakeStr}
             onChange={(e) => setStakeStr(e.target.value)}
-            className="font-mono text-xs h-8 border-border/60 max-w-xs"
+            className="font-mono text-xs h-8 border-border/60"
           />
-          <p className="font-mono text-[10px] text-muted-foreground">
-            Shown on each signal as a trade suggestion.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
-          <Wifi className="h-3.5 w-3.5 text-primary" />
-          <span>{liveCount}/{total} markets connected</span>
         </div>
 
         <Button
@@ -236,12 +195,6 @@ export function MasterTraderPanel() {
           <Play className="h-5 w-5" />
           RUN BOT
         </Button>
-
-        {history.length > 0 && (
-          <p className="text-[11px] font-mono text-muted-foreground/50">
-            {history.length} signal{history.length !== 1 ? "s" : ""} logged in previous session
-          </p>
-        )}
       </section>
     );
   }
