@@ -4,8 +4,8 @@ import { getLastDigit } from "./use-master-trader";
 
 export type RouStatus = "idle" | "buffering" | "watching" | "trading";
 
-export type RouMode   = "over" | "under";
-export type RouPhase  = "entry" | "recovery";
+export type RouMode      = "over" | "under";
+export type RouPhase     = "entry" | "recovery";
 export type RouTradeType = "over2" | "over4" | "under7" | "under5";
 
 export type RouTrade = {
@@ -15,6 +15,17 @@ export type RouTrade = {
   result:      "win" | "loss";
   actualDigit: number;
   epoch:       number;
+  pnl:         number; // net P&L for this trade (positive=profit, negative=loss)
+};
+
+// Approximate payout multipliers (profit on win as fraction of stake)
+// Over 2 / Under 7: 70% win rate → Deriv pays ~85% profit on stake
+// Over 4 / Under 5: 50% win rate → Deriv pays ~95% profit on stake
+export const PAYOUT_MULTIPLIER: Record<RouTradeType, number> = {
+  over2:  0.85,
+  over4:  0.95,
+  under7: 0.85,
+  under5: 0.95,
 };
 
 type InternalRef = {
@@ -26,26 +37,25 @@ type InternalRef = {
   ticksSinceTrade:   number;
   currentStake:      number;
   consecutiveLosses: number;
+  totalWins:         number;
+  totalLosses:       number;
+  totalPnl:          number;
   lastEpoch:         number;
 };
 
 const MARTINGALE   = 1.8;
 const TICKS_WINDOW = 2;
 
-// Over 2 win: digit > 2   (digits 3-9 = 7/10 = 70%)
-// Over 4 win: digit > 4   (digits 5-9 = 5/10 = 50%)
-// Under 7 win: digit < 7  (digits 0-6 = 7/10 = 70%)
-// Under 5 win: digit < 5  (digits 0-4 = 5/10 = 50%)
 function isWin(type: RouTradeType, digit: number): boolean {
   if (type === "over2")  return digit > 2;
   if (type === "over4")  return digit > 4;
   if (type === "under7") return digit < 7;
-  return digit < 5; // under5
+  return digit < 5;
 }
 
 function tradeType(mode: RouMode, phase: RouPhase): RouTradeType {
-  if (mode === "over")  return phase === "entry" ? "over2"  : "over4";
-  return                       phase === "entry" ? "under7" : "under5";
+  if (mode === "over") return phase === "entry" ? "over2" : "over4";
+  return phase === "entry" ? "under7" : "under5";
 }
 
 export function useReverseOverUnder(
@@ -63,6 +73,9 @@ export function useReverseOverUnder(
   const [phase,             setPhase]             = useState<RouPhase>("entry");
   const [currentStake,      setCurrentStake]      = useState(baseStake);
   const [consecutiveLosses, setConsecutiveLosses] = useState(0);
+  const [totalWins,         setTotalWins]         = useState(0);
+  const [totalLosses,       setTotalLosses]       = useState(0);
+  const [totalPnl,          setTotalPnl]          = useState(0);
   const [trades,            setTrades]            = useState<RouTrade[]>([]);
   const [recentDigits,      setRecentDigits]      = useState<number[]>([]);
 
@@ -75,10 +88,13 @@ export function useReverseOverUnder(
     ticksSinceTrade:   0,
     currentStake:      baseStake,
     consecutiveLosses: 0,
+    totalWins:         0,
+    totalLosses:       0,
+    totalPnl:          0,
     lastEpoch:         0,
   });
 
-  // Reset when disabled
+  // Reset on disable
   useEffect(() => {
     if (enabled) return;
     ref.current = {
@@ -90,6 +106,9 @@ export function useReverseOverUnder(
       ticksSinceTrade:   0,
       currentStake:      baseStake,
       consecutiveLosses: 0,
+      totalWins:         0,
+      totalLosses:       0,
+      totalPnl:          0,
       lastEpoch:         0,
     };
     setStatus("idle");
@@ -97,6 +116,9 @@ export function useReverseOverUnder(
     setPhase("entry");
     setCurrentStake(baseStake);
     setConsecutiveLosses(0);
+    setTotalWins(0);
+    setTotalLosses(0);
+    setTotalPnl(0);
     setTrades([]);
     setRecentDigits([]);
   }, [enabled, baseStake]);
@@ -111,24 +133,23 @@ export function useReverseOverUnder(
       return;
     }
 
-    const r         = ref.current;
-    const lastTick  = ticks[ticks.length - 1]!;
+    const r        = ref.current;
+    const lastTick = ticks[ticks.length - 1]!;
     if (lastTick.epoch === r.lastEpoch) return;
     r.lastEpoch = lastTick.epoch;
 
-    const digit   = getLastDigit(lastTick);
-    const recent  = ticks.slice(-12).map(getLastDigit);
+    const digit  = getLastDigit(lastTick);
+    const recent = ticks.slice(-14).map(getLastDigit);
     setRecentDigits(recent);
 
-    // Transition to watching on first live tick
     if (r.status === "idle" || r.status === "buffering") {
       r.status = "watching";
       setStatus("watching");
     }
 
     if (!r.tradeActive) {
-      // ── Pattern detection ────────────────────────────────────────────────
-      const prev = r.prevDigit;
+      // ── Pattern detection ─────────────────────────────────────────────────
+      const prev  = r.prevDigit;
       r.prevDigit = digit;
 
       if (prev !== null) {
@@ -136,25 +157,30 @@ export function useReverseOverUnder(
         const underTrigger = (prev === 0 || prev === 1) && (digit === 7 || digit === 8 || digit === 9);
 
         if (overTrigger || underTrigger) {
-          r.mode           = overTrigger ? "over" : "under";
-          r.phase          = "entry";
-          r.tradeActive    = true;
+          r.mode            = overTrigger ? "over" : "under";
+          r.phase           = "entry";
+          r.tradeActive     = true;
           r.ticksSinceTrade = 0;
-          r.status         = "trading";
+          r.status          = "trading";
           setMode(r.mode);
           setPhase("entry");
           setStatus("trading");
         }
       }
     } else {
-      // ── Active trade: count ticks ─────────────────────────────────────────
+      // ── Active trade: count ticks ──────────────────────────────────────────
       r.ticksSinceTrade++;
 
       if (r.ticksSinceTrade >= TICKS_WINDOW) {
         r.ticksSinceTrade = 0;
 
-        const type = tradeType(r.mode!, r.phase);
-        const win  = isWin(type, digit);
+        const type   = tradeType(r.mode!, r.phase);
+        const win    = isWin(type, digit);
+        const payout = PAYOUT_MULTIPLIER[type];
+        const pnl    = win ? +(r.currentStake * payout).toFixed(2) : -r.currentStake;
+
+        r.totalPnl = parseFloat((r.totalPnl + pnl).toFixed(2));
+        setTotalPnl(r.totalPnl);
 
         const trade: RouTrade = {
           id:          `${lastTick.epoch}-${Math.random().toString(36).slice(2)}`,
@@ -163,11 +189,13 @@ export function useReverseOverUnder(
           result:      win ? "win" : "loss",
           actualDigit: digit,
           epoch:       lastTick.epoch,
+          pnl,
         };
         setTrades((prev) => [trade, ...prev].slice(0, 60));
 
         if (win) {
-          // Reset to watching after win
+          r.totalWins++;
+          setTotalWins(r.totalWins);
           r.tradeActive       = false;
           r.mode              = null;
           r.phase             = "entry";
@@ -180,7 +208,8 @@ export function useReverseOverUnder(
           setConsecutiveLosses(0);
           setStatus("watching");
         } else {
-          // Loss — switch to / stay in recovery with 1.8× martingale
+          r.totalLosses++;
+          setTotalLosses(r.totalLosses);
           r.consecutiveLosses++;
           r.currentStake      = parseFloat((r.currentStake * MARTINGALE).toFixed(2));
           r.phase             = "recovery";
@@ -204,6 +233,9 @@ export function useReverseOverUnder(
     currentType,
     currentStake,
     consecutiveLosses,
+    totalWins,
+    totalLosses,
+    totalPnl,
     trades,
     recentDigits,
     tickCount: ticks.length,
