@@ -2,3 +2,4 @@
 - [Master Trader bot](master-trader.md) — single DB bot, analysis engine in use-master-trader.ts; hooks must be fixed-count (no loop hooks) for 7 symbols
 
 - [Rebrand touchpoints](rebrand-touchpoints.md) — app name/logo appears in ~6 files (2 headers, index.html, vite.config manifest, artifact.toml, replit.md)
+- [Workflow port conflicts](workflow-port-conflicts.md) — EADDRINUSE on artifact workflow restart means find & kill stale processes on that port, restart_workflow alone won't fix it

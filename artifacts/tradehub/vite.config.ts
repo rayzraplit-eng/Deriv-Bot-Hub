@@ -37,9 +37,9 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["logo.png", "favicon.png", "pwa-icon-192.png", "pwa-icon-512.png", "pwa-icon-maskable-512.png"],
       manifest: {
-        id: "rayz-pro-deriv-companion",
-        name: "RAYZ PRO — Deriv Companion",
-        short_name: "RAYZ PRO",
+        id: "rayzpro-deriv-companion",
+        name: "RAYZPRO — Deriv Companion",
+        short_name: "RAYZPRO",
         description:
           "Connect a Deriv account, manage DBot strategies, run trading calculators, and journal trades from a single dark-mode terminal.",
         start_url: basePath,

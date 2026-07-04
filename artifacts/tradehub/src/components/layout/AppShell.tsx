@@ -19,9 +19,9 @@ function SubHeader() {
         </Link>
         <span className="text-border">|</span>
         <div className="flex items-center gap-1.5">
-          <img src={logo} alt="RAYZ PRO" className="h-6 w-auto" />
+          <img src={logo} alt="RAYZPRO" className="h-6 w-auto" />
           <h1 className="text-sm font-mono font-bold text-primary tracking-tight">
-            RAYZ<span className="text-foreground"> PRO</span>
+            RAYZ<span className="text-foreground">PRO</span>
           </h1>
         </div>
       </div>

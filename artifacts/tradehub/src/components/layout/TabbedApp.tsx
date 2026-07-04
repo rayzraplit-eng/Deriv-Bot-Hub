@@ -152,9 +152,9 @@ export function TabbedApp() {
     <div className="flex flex-col h-screen bg-background overflow-hidden selection:bg-primary/30">
       <header className="h-13 border-b border-border bg-background flex items-center justify-between px-4 shrink-0 z-10">
         <div className="flex items-center gap-1.5">
-          <img src={logo} alt="RAYZ PRO" className="h-7 w-auto" />
+          <img src={logo} alt="RAYZPRO" className="h-7 w-auto" />
           <h1 className="text-base font-mono font-bold text-primary tracking-tight">
-            RAYZ<span className="text-foreground"> PRO</span>
+            RAYZ<span className="text-foreground">PRO</span>
           </h1>
         </div>
         <div className="flex items-center gap-2">

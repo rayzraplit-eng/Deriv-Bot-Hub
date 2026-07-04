@@ -2,7 +2,7 @@
 
 ## Overview
 
-RAYZ PRO — a Deriv trading companion. Connect a Deriv account via API token, import & manage Deriv DBot XML files, run trading calculators (martingale / risk / compound), and journal trades. Real Deriv WebSocket auth on connect; Postgres for persistent storage.
+RAYZPRO — a Deriv trading companion. Connect a Deriv account via API token, import & manage Deriv DBot XML files, run trading calculators (martingale / risk / compound), and journal trades. Real Deriv WebSocket auth on connect; Postgres for persistent storage.
 
 ## Stack
 
