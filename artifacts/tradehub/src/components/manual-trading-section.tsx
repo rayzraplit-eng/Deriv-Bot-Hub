@@ -38,7 +38,11 @@ const CONTRACT_TYPES = [
   { id: "DIGITODD", label: "Digit Odd", direction: "down" as const },
   { id: "DIGITOVER", label: "Digit Over", direction: "up" as const },
   { id: "DIGITUNDER", label: "Digit Under", direction: "down" as const },
+  { id: "DIGITMATCH", label: "Matches", direction: "up" as const },
+  { id: "DIGITDIFF", label: "Differs", direction: "down" as const },
 ];
+
+const DIGIT_PREDICTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 const DURATIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
