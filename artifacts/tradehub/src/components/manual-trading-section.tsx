@@ -40,7 +40,7 @@ const CONTRACT_TYPES = [
   { id: "DIGITUNDER", label: "Digit Under", direction: "down" as const },
 ];
 
-const DURATIONS = [1, 3, 5, 10, 15, 30, 60];
+const DURATIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 export function ManualTradingSection({ activeAccount }: { activeAccount: ActiveAccount }) {
   const { toast } = useToast();
@@ -76,7 +76,7 @@ export function ManualTradingSection({ activeAccount }: { activeAccount: ActiveA
           payout: win ? +(stakeNum + profit).toFixed(2) : 0,
           profit,
           result: win ? "win" : "loss",
-          notes: `Manual ${duration}m trade (${symbol})`,
+          notes: `Manual ${duration}t trade (${symbol})`,
           tradedAt: new Date().toISOString(),
         },
       },
@@ -183,7 +183,7 @@ export function ManualTradingSection({ activeAccount }: { activeAccount: ActiveA
             </div>
 
             <div className="space-y-1.5">
-              <Label className="font-mono text-[11px] uppercase text-muted-foreground tracking-wider">Duration (minutes)</Label>
+              <Label className="font-mono text-[11px] uppercase text-muted-foreground tracking-wider">Duration (ticks)</Label>
               <Select value={duration} onValueChange={setDuration}>
                 <SelectTrigger className="h-10 font-mono text-sm" data-testid="select-manual-duration">
                   <SelectValue />
@@ -191,7 +191,7 @@ export function ManualTradingSection({ activeAccount }: { activeAccount: ActiveA
                 <SelectContent>
                   {DURATIONS.map((d) => (
                     <SelectItem key={d} value={String(d)} className="font-mono text-sm">
-                      {d} {d === 1 ? "minute" : "minutes"}
+                      {d} {d === 1 ? "tick" : "ticks"}
                     </SelectItem>
                   ))}
                 </SelectContent>
