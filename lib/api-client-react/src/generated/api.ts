@@ -458,6 +458,90 @@ export const useUpdateAccount = <
 };
 
 /**
+ * @summary Pull the latest realtime balance for an account from Deriv
+ */
+export const getRefreshAccountBalanceUrl = (id: number) => {
+  return `/api/accounts/${id}/refresh`;
+};
+
+export const refreshAccountBalance = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Account> => {
+  return customFetch<Account>(getRefreshAccountBalanceUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRefreshAccountBalanceMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshAccountBalance>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refreshAccountBalance>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["refreshAccountBalance"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refreshAccountBalance>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return refreshAccountBalance(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RefreshAccountBalanceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refreshAccountBalance>>
+>;
+
+export type RefreshAccountBalanceMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Pull the latest realtime balance for an account from Deriv
+ */
+export const useRefreshAccountBalance = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshAccountBalance>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof refreshAccountBalance>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getRefreshAccountBalanceMutationOptions(options));
+};
+
+/**
  * @summary List imported bots
  */
 export const getListBotsUrl = (params?: ListBotsParams) => {

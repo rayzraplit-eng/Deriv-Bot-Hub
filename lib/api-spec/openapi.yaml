@@ -102,6 +102,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Account"
+  /accounts/{id}/refresh:
+    post:
+      operationId: refreshAccountBalance
+      tags: [accounts]
+      summary: Pull the latest realtime balance for an account from Deriv
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Account with refreshed balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
 
   /bots:
     get:

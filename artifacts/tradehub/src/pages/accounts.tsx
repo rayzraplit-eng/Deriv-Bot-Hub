@@ -1,10 +1,10 @@
-import { useListAccounts, useConnectAccount, useUpdateAccount, useDisconnectAccount, getListAccountsQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
+import { useListAccounts, useConnectAccount, useUpdateAccount, useDisconnectAccount, useRefreshAccountBalance, getListAccountsQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
-import { Wallet, Plus, Trash2, CheckCircle2, Clock, AlertCircle, LogIn, ExternalLink, KeyRound } from "lucide-react";
+import { Wallet, Plus, Trash2, CheckCircle2, Clock, AlertCircle, LogIn, ExternalLink, KeyRound, RefreshCw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -52,6 +52,7 @@ export default function Accounts() {
   const connectAccount                = useConnectAccount();
   const updateAccount                 = useUpdateAccount();
   const disconnectAccount             = useDisconnectAccount();
+  const refreshBalance                = useRefreshAccountBalance();
   const queryClient                   = useQueryClient();
   const { toast }                     = useToast();
   const [isConnectOpen, setIsConnectOpen] = useState(false);
@@ -93,6 +94,19 @@ export default function Accounts() {
         queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
         toast({ title: "Account disconnected" });
+      },
+    });
+  };
+
+  const handleRefreshBalance = (id: number) => {
+    refreshBalance.mutate({ id }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+        toast({ title: "Balance updated" });
+      },
+      onError: (error: any) => {
+        toast({ title: "Failed to refresh balance", description: error.message ?? "Unknown error", variant: "destructive" });
       },
     });
   };
@@ -239,8 +253,19 @@ export default function Accounts() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pb-4">
-                <div className="text-3xl font-mono font-bold tracking-tight text-foreground">
-                  {account.balance.toLocaleString("en-US", { style: "currency", currency: account.currency })}
+                <div className="flex items-center gap-2">
+                  <div className="text-3xl font-mono font-bold tracking-tight text-foreground">
+                    {account.balance.toLocaleString("en-US", { style: "currency", currency: account.currency })}
+                  </div>
+                  <Button
+                    variant="ghost" size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-primary rounded-none shrink-0"
+                    onClick={() => handleRefreshBalance(account.id)}
+                    disabled={refreshBalance.isPending && refreshBalance.variables?.id === account.id}
+                    title="Refresh balance"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${refreshBalance.isPending && refreshBalance.variables?.id === account.id ? "animate-spin" : ""}`} />
+                  </Button>
                 </div>
                 <div className="flex items-center gap-1 text-[10px] text-muted-foreground font-mono mt-2">
                   <Clock className="h-3 w-3" />

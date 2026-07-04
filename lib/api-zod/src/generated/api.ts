@@ -78,6 +78,26 @@ export const UpdateAccountResponse = zod.object({
 });
 
 /**
+ * @summary Pull the latest realtime balance for an account from Deriv
+ */
+export const RefreshAccountBalanceParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const RefreshAccountBalanceResponse = zod.object({
+  id: zod.number(),
+  label: zod.string(),
+  loginid: zod.string(),
+  accountType: zod.string().describe("real or demo"),
+  currency: zod.string(),
+  balance: zod.number(),
+  email: zod.string().optional(),
+  country: zod.string().optional(),
+  isActive: zod.boolean(),
+  connectedAt: zod.coerce.date(),
+});
+
+/**
  * @summary List imported bots
  */
 export const ListBotsQueryParams = zod.object({

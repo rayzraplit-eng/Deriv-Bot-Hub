@@ -6,6 +6,7 @@ import {
   UpdateAccountBody,
   UpdateAccountParams,
   DisconnectAccountParams,
+  RefreshAccountBalanceParams,
   ListAccountsResponse,
   ListAccountsResponseItem,
 } from "@workspace/api-zod";
@@ -130,6 +131,42 @@ router.patch("/accounts/:id", async (req, res): Promise<void> => {
   }
 
   res.json(serialize(row));
+});
+
+router.post("/accounts/:id/refresh", async (req, res): Promise<void> => {
+  const params = RefreshAccountBalanceParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(accountsTable)
+    .where(eq(accountsTable.id, params.data.id));
+
+  if (!existing) {
+    res.status(404).json({ error: "Account not found" });
+    return;
+  }
+
+  let info;
+  try {
+    info = await fetchDerivAccountInfo(existing.apiToken);
+  } catch (err) {
+    const message = err instanceof DerivAuthError ? err.message : "Failed to refresh balance";
+    req.log.warn({ err }, "Deriv balance refresh failed");
+    res.status(400).json({ error: message });
+    return;
+  }
+
+  const [row] = await db
+    .update(accountsTable)
+    .set({ balance: info.balance, currency: info.currency })
+    .where(eq(accountsTable.id, params.data.id))
+    .returning();
+
+  res.json(serialize(row!));
 });
 
 export default router;
