@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { ArrowLeft, Wallet } from "lucide-react";
 import { useListAccounts } from "@workspace/api-client-react";
 import { InstallPWAButton } from "@/components/install-pwa-button";
+import logo from "@assets/logo_1783185010505.png";
 
 function SubHeader() {
   const { data: accounts } = useListAccounts();
@@ -17,9 +18,12 @@ function SubHeader() {
           </button>
         </Link>
         <span className="text-border">|</span>
-        <h1 className="text-sm font-mono font-bold text-primary tracking-tight">
-          TRADE<span className="text-foreground">HUB</span>
-        </h1>
+        <div className="flex items-center gap-1.5">
+          <img src={logo} alt="RAYZ PRO" className="h-6 w-auto" />
+          <h1 className="text-sm font-mono font-bold text-primary tracking-tight">
+            RAYZ<span className="text-foreground"> PRO</span>
+          </h1>
+        </div>
       </div>
       <div className="flex items-center gap-2">
         <InstallPWAButton />

@@ -10,6 +10,7 @@ import { ReverseOverUnderInline } from "@/components/reverse-over-under-panel";
 import { AnalisisToolSection } from "@/components/analisis-tool-section";
 import { ManualTradingSection } from "@/components/manual-trading-section";
 import { Badge } from "@/components/ui/badge";
+import logo from "@assets/logo_1783185010505.png";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -150,9 +151,12 @@ export function TabbedApp() {
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden selection:bg-primary/30">
       <header className="h-13 border-b border-border bg-background flex items-center justify-between px-4 shrink-0 z-10">
-        <h1 className="text-base font-mono font-bold text-primary tracking-tight">
-          TRADE<span className="text-foreground">HUB</span>
-        </h1>
+        <div className="flex items-center gap-1.5">
+          <img src={logo} alt="RAYZ PRO" className="h-7 w-auto" />
+          <h1 className="text-base font-mono font-bold text-primary tracking-tight">
+            RAYZ<span className="text-foreground"> PRO</span>
+          </h1>
+        </div>
         <div className="flex items-center gap-2">
           <InstallPWAButton />
           <AccountPill account={activeAccount} />

@@ -35,11 +35,11 @@ export default defineConfig({
     runtimeErrorOverlay(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg", "pwa-icon.svg", "pwa-icon-maskable.svg"],
+      includeAssets: ["logo.png"],
       manifest: {
-        id: "tradehub-deriv-companion",
-        name: "TradeHub — Deriv Companion",
-        short_name: "TradeHub",
+        id: "rayz-pro-deriv-companion",
+        name: "RAYZ PRO — Deriv Companion",
+        short_name: "RAYZ PRO",
         description:
           "Connect a Deriv account, manage DBot strategies, run trading calculators, and journal trades from a single dark-mode terminal.",
         start_url: basePath,
@@ -50,8 +50,7 @@ export default defineConfig({
         theme_color: "#0a0f0d",
         categories: ["finance", "productivity", "utilities"],
         icons: [
-          { src: "pwa-icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
-          { src: "pwa-icon-maskable.svg", sizes: "any", type: "image/svg+xml", purpose: "maskable" },
+          { src: "logo.png", sizes: "1536x1024", type: "image/png", purpose: "any" },
         ],
       },
       workbox: {
@@ -63,7 +62,7 @@ export default defineConfig({
             urlPattern: ({ url }) => url.origin === self.location.origin && url.pathname.startsWith("/api/"),
             handler: "NetworkFirst",
             options: {
-              cacheName: "tradehub-api",
+              cacheName: "rayzpro-api",
               networkTimeoutSeconds: 5,
               expiration: { maxEntries: 64, maxAgeSeconds: 60 * 5 },
             },
@@ -72,7 +71,7 @@ export default defineConfig({
             urlPattern: ({ url }) => url.origin === "https://fonts.googleapis.com" || url.origin === "https://fonts.gstatic.com",
             handler: "CacheFirst",
             options: {
-              cacheName: "tradehub-fonts",
+              cacheName: "rayzpro-fonts",
               expiration: { maxEntries: 32, maxAgeSeconds: 60 * 60 * 24 * 30 },
             },
           },

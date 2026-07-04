@@ -82,7 +82,7 @@ define(['./workbox-7521d49b'], (function (workbox) { 'use strict';
     "revision": "3ca0b8505b4bec776b69afdba2768812"
   }, {
     "url": "/index.html",
-    "revision": "0.fc9gf20hbko"
+    "revision": "0.7h9v1d4aih"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("/index.html"), {
@@ -92,7 +92,7 @@ define(['./workbox-7521d49b'], (function (workbox) { 'use strict';
   workbox.registerRoute(({
     url
   }) => url.origin === self.location.origin && url.pathname.startsWith("/api/"), new workbox.NetworkFirst({
-    "cacheName": "tradehub-api",
+    "cacheName": "rayzpro-api",
     "networkTimeoutSeconds": 5,
     plugins: [new workbox.ExpirationPlugin({
       maxEntries: 64,
@@ -102,7 +102,7 @@ define(['./workbox-7521d49b'], (function (workbox) { 'use strict';
   workbox.registerRoute(({
     url
   }) => url.origin === "https://fonts.googleapis.com" || url.origin === "https://fonts.gstatic.com", new workbox.CacheFirst({
-    "cacheName": "tradehub-fonts",
+    "cacheName": "rayzpro-fonts",
     plugins: [new workbox.ExpirationPlugin({
       maxEntries: 32,
       maxAgeSeconds: 2592000

@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "TradeHub - Deriv Companion"
+title = "RAYZ PRO - Deriv Companion"
 version = "1.0.0"
 id = "artifacts/tradehub"
 router = "path"
