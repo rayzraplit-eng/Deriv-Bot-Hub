@@ -37,21 +37,21 @@ function buildDerivOAuthUrl(): string {
 function loginWithDeriv() {
   const url = buildDerivOAuthUrl();
   // Deriv's login page refuses to render inside an iframe (X-Frame-Options),
-  // which is how the Replit preview shows this app. Breaking out to the top
-  // window (or opening a full new tab as a fallback) ensures the OAuth flow
-  // — and its redirect back — always happens in a real top-level browser tab.
+  // which is how the Replit preview shows this app. In that case, break out
+  // to the top window so the OAuth flow happens in a real top-level tab.
   try {
     if (window.top && window.top !== window.self) {
       window.top.location.href = url;
       return;
     }
   } catch {
-    // Cross-origin access to window.top can throw; fall through to window.open.
+    // Cross-origin access to window.top can throw — fall through below.
   }
-  const opened = window.open(url, "_blank", "noopener,noreferrer");
-  if (!opened) {
-    window.location.href = url;
-  }
+  // Normal case (real browser, not embedded in an iframe): navigate the
+  // current tab directly. This is the standard OAuth redirect pattern —
+  // Deriv will land the SAME tab back on redirect_uri after login, instead
+  // of opening a separate tab that the user has to manually switch to.
+  window.location.href = url;
 }
 
 // ── Zod schema ────────────────────────────────────────────────────────────────
