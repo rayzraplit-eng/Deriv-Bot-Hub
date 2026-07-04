@@ -19,8 +19,8 @@ import * as z from "zod";
 // ── Deriv OAuth helpers ───────────────────────────────────────────────────────
 
 // Default app_id — users can override via env var VITE_DERIV_APP_ID.
-// Register your own at https://developers.deriv.com/ and set the redirect URL
-// to your deployed app URL (e.g. https://yourapp.replit.app/).
+// Register your own at https://developers.deriv.com/register-app/register and
+// set the redirect URL to your app's URL (e.g. https://yourapp.replit.app/).
 const DERIV_APP_ID = (import.meta.env.VITE_DERIV_APP_ID as string | undefined) ?? "36544";
 
 function buildDerivOAuthUrl(): string {
@@ -35,7 +35,23 @@ function buildDerivOAuthUrl(): string {
 }
 
 function loginWithDeriv() {
-  window.location.href = buildDerivOAuthUrl();
+  const url = buildDerivOAuthUrl();
+  // Deriv's login page refuses to render inside an iframe (X-Frame-Options),
+  // which is how the Replit preview shows this app. Breaking out to the top
+  // window (or opening a full new tab as a fallback) ensures the OAuth flow
+  // — and its redirect back — always happens in a real top-level browser tab.
+  try {
+    if (window.top && window.top !== window.self) {
+      window.top.location.href = url;
+      return;
+    }
+  } catch {
+    // Cross-origin access to window.top can throw; fall through to window.open.
+  }
+  const opened = window.open(url, "_blank", "noopener,noreferrer");
+  if (!opened) {
+    window.location.href = url;
+  }
 }
 
 // ── Zod schema ────────────────────────────────────────────────────────────────
@@ -211,14 +227,30 @@ export default function Accounts() {
               </p>
               <p className="text-muted-foreground/70 text-[10px] mt-1">
                 Requires a Deriv App ID registered at{" "}
-                <a href="https://developers.deriv.com/" target="_blank" rel="noopener noreferrer" className="text-primary underline">
-                  developers.deriv.com
+                <a href="https://developers.deriv.com/register-app/register" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                  developers.deriv.com/register-app
                 </a>{" "}
-                with your app URL as the redirect URI.
+                with the Redirect URL below.
                 {DERIV_APP_ID !== "36544" && (
                   <span className="text-primary ml-1">Using App ID: {DERIV_APP_ID}</span>
                 )}
               </p>
+              <div className="flex items-center gap-2 mt-1">
+                <code className="text-[10px] bg-background/60 border border-border/50 px-2 py-1 rounded text-foreground/80 select-all break-all">
+                  {typeof window !== "undefined" ? window.location.origin + import.meta.env.BASE_URL : ""}
+                </code>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[10px] font-mono shrink-0"
+                  onClick={() => {
+                    navigator.clipboard.writeText(window.location.origin + import.meta.env.BASE_URL);
+                  }}
+                >
+                  Copy
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
