@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { LayoutDashboard, Brain, BarChart2, Hand, BookOpen, Zap, ChevronDown, ArrowLeftRight } from "lucide-react";
+import { LayoutDashboard, Brain, BarChart2, Hand, BookOpen, Zap, ChevronDown, ArrowLeftRight, Layers } from "lucide-react";
 import { useListAccounts } from "@workspace/api-client-react";
 import { InstallPWAButton } from "@/components/install-pwa-button";
 import Dashboard from "@/pages/dashboard";
@@ -7,6 +7,7 @@ import Journal from "@/pages/journal";
 import { MasterTraderPanel } from "@/components/master-trader-panel";
 import { MatchesFixerInline } from "@/components/matches-fixer-panel";
 import { ReverseOverUnderInline } from "@/components/reverse-over-under-panel";
+import { Over2Under7ProInline } from "@/components/over2-under7-pro-panel";
 import { AnalisisToolSection } from "@/components/analisis-tool-section";
 import { ManualTradingSection } from "@/components/manual-trading-section";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +65,16 @@ const BOT_LIST: BotEntry[] = [
     icon:     ArrowLeftRight,
     iconCls:  "text-purple-400",
     content:  <ReverseOverUnderInline />,
+  },
+  {
+    id:       "over2-under7-pro",
+    label:    "Over 2 Under 7 Pro",
+    sublabel: "2+ streak reversal · ×1.8 recovery martingale",
+    badge:    "Live · Pro",
+    badgeCls: "border-sky-500/40 text-sky-400 bg-sky-500/10",
+    icon:     Layers,
+    iconCls:  "text-sky-400",
+    content:  <Over2Under7ProInline />,
   },
 ];
 
