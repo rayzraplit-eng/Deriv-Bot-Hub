@@ -36,22 +36,34 @@ function buildDerivOAuthUrl(): string {
 
 function loginWithDeriv() {
   const url = buildDerivOAuthUrl();
-  // Deriv's login page refuses to render inside an iframe (X-Frame-Options),
-  // which is how the Replit preview shows this app. In that case, break out
-  // to the top window so the OAuth flow happens in a real top-level tab.
-  try {
-    if (window.top && window.top !== window.self) {
-      window.top.location.href = url;
-      return;
+
+  // Preferred flow: open Deriv's login in a small popup window. The user
+  // never leaves the RAYZPRO tab — the popup handles the OAuth round trip,
+  // then posts the result back and closes itself automatically
+  // (see OAuthCallbackHandler in App.tsx for the popup side of this).
+  const width = 480;
+  const height = 720;
+  const left = Math.max(0, (window.screen.width - width) / 2);
+  const top = Math.max(0, (window.screen.height - height) / 2);
+  const popup = window.open(
+    url,
+    "deriv-oauth",
+    `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`,
+  );
+
+  if (!popup) {
+    // Popup blocked by the browser — fall back to a normal full-page
+    // redirect so login still works, just without the popup UX.
+    try {
+      if (window.top && window.top !== window.self) {
+        window.top.location.href = url;
+        return;
+      }
+    } catch {
+      // Cross-origin access to window.top can throw — fall through below.
     }
-  } catch {
-    // Cross-origin access to window.top can throw — fall through below.
+    window.location.href = url;
   }
-  // Normal case (real browser, not embedded in an iframe): navigate the
-  // current tab directly. This is the standard OAuth redirect pattern —
-  // Deriv will land the SAME tab back on redirect_uri after login, instead
-  // of opening a separate tab that the user has to manually switch to.
-  window.location.href = url;
 }
 
 // ── Zod schema ────────────────────────────────────────────────────────────────
