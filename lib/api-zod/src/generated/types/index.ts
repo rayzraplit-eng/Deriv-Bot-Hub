@@ -17,6 +17,8 @@ export * from "./connectAccountBody";
 export * from "./createTradeBody";
 export * from "./createTradeBodyResult";
 export * from "./dashboardSummary";
+export * from "./derivOAuthCallbackBody";
+export * from "./derivOAuthCallbackResponse";
 export * from "./equityPoint";
 export * from "./healthStatus";
 export * from "./importBotBody";

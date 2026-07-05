@@ -65,6 +65,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Account"
+  /accounts/oauth/deriv/callback:
+    post:
+      operationId: connectAccountsViaDerivOAuth
+      tags: [accounts]
+      summary: Exchange a Deriv OAuth2 authorization code for account(s)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DerivOAuthCallbackBody"
+      responses:
+        "200":
+          description: Accounts connected via OAuth
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DerivOAuthCallbackResponse"
   /accounts/{id}:
     delete:
       operationId: disconnectAccount
@@ -461,6 +479,35 @@ components:
           type: string
         isActive:
           type: boolean
+
+    DerivOAuthCallbackBody:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+          description: Authorization code returned by Deriv's OAuth2 /oauth2/auth endpoint
+        codeVerifier:
+          type: string
+          minLength: 1
+          description: PKCE code_verifier generated before the redirect
+        redirectUri:
+          type: string
+          minLength: 1
+          description: Exact redirect_uri used in the authorize request
+      required: [code, codeVerifier, redirectUri]
+
+    DerivOAuthCallbackResponse:
+      type: object
+      properties:
+        connected:
+          type: integer
+          description: Number of accounts connected or updated
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Account"
+      required: [connected, accounts]
 
     Bot:
       type: object

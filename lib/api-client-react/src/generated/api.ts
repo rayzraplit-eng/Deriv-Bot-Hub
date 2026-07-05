@@ -25,6 +25,8 @@ import type {
   ConnectAccountBody,
   CreateTradeBody,
   DashboardSummary,
+  DerivOAuthCallbackBody,
+  DerivOAuthCallbackResponse,
   EquityPoint,
   HealthStatus,
   ImportBotBody,
@@ -284,6 +286,96 @@ export const useConnectAccount = <
   TContext
 > => {
   return useMutation(getConnectAccountMutationOptions(options));
+};
+
+/**
+ * @summary Exchange a Deriv OAuth2 authorization code for account(s)
+ */
+export const getConnectAccountsViaDerivOAuthUrl = () => {
+  return `/api/accounts/oauth/deriv/callback`;
+};
+
+export const connectAccountsViaDerivOAuth = async (
+  derivOAuthCallbackBody: DerivOAuthCallbackBody,
+  options?: RequestInit,
+): Promise<DerivOAuthCallbackResponse> => {
+  return customFetch<DerivOAuthCallbackResponse>(
+    getConnectAccountsViaDerivOAuthUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(derivOAuthCallbackBody),
+    },
+  );
+};
+
+export const getConnectAccountsViaDerivOAuthMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof connectAccountsViaDerivOAuth>>,
+    TError,
+    { data: BodyType<DerivOAuthCallbackBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof connectAccountsViaDerivOAuth>>,
+  TError,
+  { data: BodyType<DerivOAuthCallbackBody> },
+  TContext
+> => {
+  const mutationKey = ["connectAccountsViaDerivOAuth"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof connectAccountsViaDerivOAuth>>,
+    { data: BodyType<DerivOAuthCallbackBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return connectAccountsViaDerivOAuth(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConnectAccountsViaDerivOAuthMutationResult = NonNullable<
+  Awaited<ReturnType<typeof connectAccountsViaDerivOAuth>>
+>;
+export type ConnectAccountsViaDerivOAuthMutationBody =
+  BodyType<DerivOAuthCallbackBody>;
+export type ConnectAccountsViaDerivOAuthMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Exchange a Deriv OAuth2 authorization code for account(s)
+ */
+export const useConnectAccountsViaDerivOAuth = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof connectAccountsViaDerivOAuth>>,
+    TError,
+    { data: BodyType<DerivOAuthCallbackBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof connectAccountsViaDerivOAuth>>,
+  TError,
+  { data: BodyType<DerivOAuthCallbackBody> },
+  TContext
+> => {
+  return useMutation(getConnectAccountsViaDerivOAuthMutationOptions(options));
 };
 
 /**

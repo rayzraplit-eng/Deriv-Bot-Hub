@@ -38,6 +38,30 @@ export interface UpdateAccountBody {
   isActive?: boolean;
 }
 
+export interface DerivOAuthCallbackBody {
+  /**
+   * Authorization code returned by Deriv's OAuth2 /oauth2/auth endpoint
+   * @minLength 1
+   */
+  code: string;
+  /**
+   * PKCE code_verifier generated before the redirect
+   * @minLength 1
+   */
+  codeVerifier: string;
+  /**
+   * Exact redirect_uri used in the authorize request
+   * @minLength 1
+   */
+  redirectUri: string;
+}
+
+export interface DerivOAuthCallbackResponse {
+  /** Number of accounts connected or updated */
+  connected: number;
+  accounts: Account[];
+}
+
 export type BotStatus = (typeof BotStatus)[keyof typeof BotStatus];
 
 export const BotStatus = {

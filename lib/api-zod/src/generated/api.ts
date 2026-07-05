@@ -46,6 +46,45 @@ export const ConnectAccountBody = zod.object({
 });
 
 /**
+ * @summary Exchange a Deriv OAuth2 authorization code for account(s)
+ */
+
+export const ConnectAccountsViaDerivOAuthBody = zod.object({
+  code: zod
+    .string()
+    .min(1)
+    .describe(
+      "Authorization code returned by Deriv's OAuth2 \/oauth2\/auth endpoint",
+    ),
+  codeVerifier: zod
+    .string()
+    .min(1)
+    .describe("PKCE code_verifier generated before the redirect"),
+  redirectUri: zod
+    .string()
+    .min(1)
+    .describe("Exact redirect_uri used in the authorize request"),
+});
+
+export const ConnectAccountsViaDerivOAuthResponse = zod.object({
+  connected: zod.number().describe("Number of accounts connected or updated"),
+  accounts: zod.array(
+    zod.object({
+      id: zod.number(),
+      label: zod.string(),
+      loginid: zod.string(),
+      accountType: zod.string().describe("real or demo"),
+      currency: zod.string(),
+      balance: zod.number(),
+      email: zod.string().optional(),
+      country: zod.string().optional(),
+      isActive: zod.boolean(),
+      connectedAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
  * @summary Disconnect (remove) an account
  */
 export const DisconnectAccountParams = zod.object({
