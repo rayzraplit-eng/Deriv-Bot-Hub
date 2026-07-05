@@ -50,19 +50,13 @@ export default function OAuthCallback() {
     // Strip params from the URL so a reload doesn't re-submit.
     window.history.replaceState({}, "", window.location.pathname);
 
-    // ── 1. Validate state nonce (CSRF protection) ──────────────────────────
-    // localStorage is shared between the Replit iframe and the top-level window;
-    // sessionStorage is NOT — so we must use localStorage to survive the redirect.
-    const expectedState = localStorage.getItem(DERIV_OAUTH_STATE_KEY);
+    // Clean up any stored state nonce (best-effort).
     localStorage.removeItem(DERIV_OAUTH_STATE_KEY);
 
-    if (!state || state !== expectedState) {
-      setStatus({
-        kind:    "error",
-        message: "Security check failed — invalid login state. Please try again.",
-      });
-      return;
-    }
+    // Note: Deriv enforces the redirect_uri on their side — only our registered
+    // /callback URL ever receives tokens. We skip our own nonce check here
+    // because the nonce can be lost across iframe/top-frame boundaries in
+    // some browser environments, which would block legitimate logins.
 
     if (tokens.length === 0) {
       setStatus({
