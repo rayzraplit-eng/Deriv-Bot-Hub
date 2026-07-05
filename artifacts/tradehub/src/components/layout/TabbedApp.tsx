@@ -10,6 +10,7 @@ import { ReverseOverUnderInline } from "@/components/reverse-over-under-panel";
 import { AnalisisToolSection } from "@/components/analisis-tool-section";
 import { ManualTradingSection } from "@/components/manual-trading-section";
 import { Badge } from "@/components/ui/badge";
+import { AccountStatus } from "@/components/account-status";
 import logo from "@assets/logo_1783185010505.png";
 
 const TABS = [
@@ -159,7 +160,7 @@ export function TabbedApp() {
         </div>
         <div className="flex items-center gap-2">
           <InstallPWAButton />
-          <AccountPill account={activeAccount} />
+          <AccountStatus account={activeAccount} />
         </div>
       </header>
 
@@ -219,25 +220,3 @@ function PanelContent({ id, activeAccount }: { id: TabId; activeAccount: any }) 
   }
 }
 
-function AccountPill({ account }: { account: any }) {
-  if (!account) {
-    return (
-      <div className="px-2 py-1 rounded-full bg-destructive/10 border border-destructive/20 text-destructive text-[9px] font-mono leading-none">
-        No account
-      </div>
-    );
-  }
-  return (
-    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/50 border border-border">
-      <div className={`h-2 w-2 rounded-full shrink-0 ${account.accountType === "real" ? "bg-primary" : "bg-chart-3"}`} />
-      <div className="flex flex-col min-w-0">
-        <span className="text-[10px] font-mono font-medium leading-none truncate">
-          {account.balance.toLocaleString("en-US", { style: "currency", currency: account.currency })}
-        </span>
-        <span className="text-[9px] font-mono text-muted-foreground leading-none mt-0.5 truncate">
-          {account.label}
-        </span>
-      </div>
-    </div>
-  );
-}

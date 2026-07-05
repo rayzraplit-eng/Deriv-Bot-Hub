@@ -1,7 +1,8 @@
 import { Link } from "wouter";
-import { ArrowLeft, Wallet } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useListAccounts } from "@workspace/api-client-react";
 import { InstallPWAButton } from "@/components/install-pwa-button";
+import { AccountStatus } from "@/components/account-status";
 import logo from "@assets/logo_1783185010505.png";
 
 function SubHeader() {
@@ -27,31 +28,7 @@ function SubHeader() {
       </div>
       <div className="flex items-center gap-2">
         <InstallPWAButton />
-        {activeAccount ? (
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/50 border border-border">
-            <div
-              className={`h-2 w-2 rounded-full shrink-0 ${
-                activeAccount.accountType === "real" ? "bg-primary" : "bg-chart-3"
-              }`}
-            />
-            <div className="flex flex-col min-w-0">
-              <span className="text-[10px] font-mono font-medium leading-none">
-                {activeAccount.balance.toLocaleString("en-US", {
-                  style: "currency",
-                  currency: activeAccount.currency,
-                })}
-              </span>
-              <span className="text-[9px] font-mono text-muted-foreground leading-none mt-0.5">
-                {activeAccount.label}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-destructive/10 border border-destructive/20 text-destructive text-[9px] font-mono">
-            <Wallet className="h-3 w-3" />
-            No account
-          </div>
-        )}
+        <AccountStatus account={activeAccount} />
       </div>
     </header>
   );
