@@ -9,7 +9,10 @@ export type DerivTick = {
 
 export type DerivTickStatus = "connecting" | "open" | "closed" | "error";
 
-const DERIV_WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089";
+// Use the registered app_id — must match the Deriv OAuth app.
+// Set VITE_DERIV_APP_ID in Replit Secrets; falls back to 36544 for development.
+const DERIV_APP_ID = (import.meta.env.VITE_DERIV_APP_ID as string | undefined) ?? "36544";
+const DERIV_WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
 
 type Subscriber        = (tick: DerivTick) => void;
 type HistorySubscriber = (ticks: DerivTick[]) => void;

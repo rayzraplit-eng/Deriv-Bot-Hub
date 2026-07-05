@@ -31,12 +31,16 @@ function buildDerivOAuthUrl(): string {
   const state = crypto.randomUUID();
   sessionStorage.setItem(DERIV_OAUTH_STATE_KEY, state);
 
-  // The redirect URL is the app root (where the OAuth callback handler lives).
-  const redirectUrl = window.location.origin + import.meta.env.BASE_URL;
+  // Redirect URI points to the dedicated /callback route.
+  // This is the exact URL you register in the Deriv app dashboard:
+  //   https://app.deriv.com/account/apps-and-api  →  App details  →  Redirect URL
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const redirectUrl = `${window.location.origin}${base}/callback`;
   return (
     `https://oauth.deriv.com/oauth2/authorize` +
     `?app_id=${encodeURIComponent(DERIV_APP_ID)}` +
     `&l=EN&brand=deriv` +
+    `&scope=${encodeURIComponent("read,trade,payments,admin")}` +
     `&redirect_uri=${encodeURIComponent(redirectUrl)}` +
     `&state=${encodeURIComponent(state)}`
   );
