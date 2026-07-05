@@ -1,14 +1,16 @@
 /**
- * Dedicated OAuth callback page — registered as the redirect_uri with Deriv.
+ * Dedicated OAuth callback page — registered as redirect_uri with Deriv.
  *
- * After the user authorises on oauth.deriv.com, Deriv redirects here with:
- *   /callback?acct1=CR123&token1=xxx&cur1=USD&acct2=VRTC456&token2=yyy&state=<nonce>
+ * Deriv's new API uses Authorization Code + PKCE. After the user authorises,
+ * Deriv redirects here with:
+ *   /callback?code=<auth-code>&state=<state>
  *
- * Redirect URI to register in the Deriv app dashboard:
+ * We exchange the code at the backend (POST /api/oauth/exchange), which calls
+ * Deriv's token endpoint, then authorises via WebSocket to fetch all account
+ * tokens from the `account_list` field of the `authorize` response.
+ *
+ * Redirect URI to register in Deriv app dashboard:
  *   https://<your-domain>/callback
- *
- * Deriv app registration (new interface — not legacy binary.com):
- *   https://app.deriv.com/account/apps-and-api
  */
 
 import { useEffect, useState } from "react";
@@ -16,23 +18,8 @@ import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListAccountsQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
 
-const DERIV_OAUTH_STATE_KEY = "deriv_oauth_state";
-
-type PendingToken = { loginid: string; token: string };
-
-function parseCallbackParams(): { tokens: PendingToken[]; state: string | null } {
-  const params = new URLSearchParams(window.location.search);
-  const tokens: PendingToken[] = [];
-  let i = 1;
-  while (params.has(`acct${i}`) && params.has(`token${i}`)) {
-    tokens.push({
-      loginid: params.get(`acct${i}`)!,
-      token:   params.get(`token${i}`)!,
-    });
-    i++;
-  }
-  return { tokens, state: params.get("state") };
-}
+const DERIV_PKCE_VERIFIER_KEY = "deriv_pkce_verifier";
+const DERIV_PKCE_REDIRECT_KEY  = "deriv_pkce_redirect";
 
 type Status =
   | { kind: "processing"; progress: string }
@@ -40,79 +27,70 @@ type Status =
   | { kind: "error";      message: string };
 
 export default function OAuthCallback() {
-  const [status, setStatus] = useState<Status>({ kind: "processing", progress: "Verifying…" });
-  const [, navigate] = useLocation();
-  const qc = useQueryClient();
+  const [status, setStatus]   = useState<Status>({ kind: "processing", progress: "Reading authorisation code…" });
+  const [, navigate]          = useLocation();
+  const qc                    = useQueryClient();
 
   useEffect(() => {
-    const { tokens, state } = parseCallbackParams();
+    const params = new URLSearchParams(window.location.search);
 
-    // Strip params from the URL so a reload doesn't re-submit.
+    // Strip params from the URL immediately so a page reload doesn't re-trigger.
     window.history.replaceState({}, "", window.location.pathname);
 
-    // Clean up any stored state nonce (best-effort).
-    localStorage.removeItem(DERIV_OAUTH_STATE_KEY);
+    const code = params.get("code");
 
-    // Note: Deriv enforces the redirect_uri on their side — only our registered
-    // /callback URL ever receives tokens. We skip our own nonce check here
-    // because the nonce can be lost across iframe/top-frame boundaries in
-    // some browser environments, which would block legitimate logins.
+    if (!code) {
+      // Deriv returned an error or the URL is malformed.
+      const errDesc = params.get("error_description") ?? params.get("error") ?? "No authorisation code returned.";
+      setStatus({ kind: "error", message: errDesc });
+      return;
+    }
 
-    if (tokens.length === 0) {
+    // Retrieve the PKCE verifier + redirect URI stored before the redirect.
+    const codeVerifier = localStorage.getItem(DERIV_PKCE_VERIFIER_KEY);
+    const redirectUri  = localStorage.getItem(DERIV_PKCE_REDIRECT_KEY);
+    localStorage.removeItem(DERIV_PKCE_VERIFIER_KEY);
+    localStorage.removeItem(DERIV_PKCE_REDIRECT_KEY);
+
+    if (!codeVerifier || !redirectUri) {
       setStatus({
         kind:    "error",
-        message: "No accounts were returned by Deriv. Please try logging in again.",
+        message: "PKCE verifier missing — please try logging in again.",
       });
       return;
     }
 
-    // ── 2. Connect each account via the API ────────────────────────────────
-    setStatus({
-      kind:     "processing",
-      progress: `Connecting ${tokens.length} account${tokens.length > 1 ? "s" : ""}…`,
-    });
+    setStatus({ kind: "processing", progress: "Exchanging code for tokens…" });
 
     const apiBase = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-    Promise.allSettled(
-      tokens.map(async ({ loginid, token }) => {
-        const res = await fetch(`${apiBase}/api/accounts`, {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ label: loginid, apiToken: token }),
-        });
+    fetch(`${apiBase}/api/oauth/exchange`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ code, codeVerifier, redirectUri }),
+    })
+      .then(async (res) => {
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: "Unknown error" }));
-          throw new Error(err?.error ?? `Failed to connect ${loginid}`);
+          throw new Error(err?.error ?? `Token exchange failed (${res.status})`);
         }
-        return res.json();
-      }),
-    ).then((results) => {
-      const failed  = results.filter((r) => r.status === "rejected");
-      const success = results.filter((r) => r.status === "fulfilled");
-
-      qc.invalidateQueries({ queryKey: getListAccountsQueryKey() });
-      qc.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
-
-      if (failed.length > 0 && success.length === 0) {
-        const reason = (failed[0] as PromiseRejectedResult).reason as Error;
-        setStatus({ kind: "error", message: reason?.message ?? "Could not connect accounts." });
-        return;
-      }
-
-      setStatus({ kind: "success", count: success.length });
-
-      // Brief pause so the user sees the ✓ before navigating.
-      setTimeout(() => navigate("/accounts"), 1200);
-    });
+        return res.json() as Promise<{ count: number }>;
+      })
+      .then(({ count }) => {
+        qc.invalidateQueries({ queryKey: getListAccountsQueryKey() });
+        qc.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+        setStatus({ kind: "success", count });
+        setTimeout(() => navigate("/accounts"), 1200);
+      })
+      .catch((err: Error) => {
+        setStatus({ kind: "error", message: err.message });
+      });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="flex flex-col items-center gap-6 max-w-sm w-full">
 
-        {/* RAYZPRO wordmark */}
         <span className="text-xl font-bold tracking-widest text-primary">RAYZPRO</span>
 
         {status.kind === "processing" && (
@@ -120,9 +98,7 @@ export default function OAuthCallback() {
             <div className="h-14 w-14 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
             <div className="text-center">
               <p className="text-sm font-medium text-foreground">{status.progress}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Connecting your Deriv account…
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">Connecting your Deriv account…</p>
             </div>
           </>
         )}
@@ -136,7 +112,7 @@ export default function OAuthCallback() {
             </div>
             <div className="text-center">
               <p className="text-sm font-semibold text-emerald-400">
-                {status.count} account{status.count > 1 ? "s" : ""} connected!
+                {status.count} account{status.count !== 1 ? "s" : ""} connected!
               </p>
               <p className="text-xs text-muted-foreground mt-1">Redirecting you now…</p>
             </div>

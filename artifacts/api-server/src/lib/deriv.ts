@@ -23,6 +23,80 @@ export class DerivAuthError extends Error {
   }
 }
 
+/**
+ * Authorise via WebSocket using a Deriv OAuth2 access_token.
+ * Returns all linked accounts with their per-account API tokens,
+ * extracted from the `account_list` field of the `authorize` response.
+ *
+ * This is the second step of the PKCE flow after the code has been exchanged
+ * for an access_token at https://oauth.deriv.com/oauth2/token.
+ */
+export async function fetchDerivAccountsFromOAuth(
+  accessToken: string,
+): Promise<Array<{ loginid: string; token: string }>> {
+  return new Promise((resolve, reject) => {
+    const ws      = new WebSocket(DERIV_WS_URL);
+    let settled   = false;
+    let timeout: NodeJS.Timeout;
+
+    const cleanup = () => {
+      if (timeout) clearTimeout(timeout);
+      try { ws.close(); } catch { /* noop */ }
+    };
+
+    const finish = (err: Error | null, value?: Array<{ loginid: string; token: string }>) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (err) reject(err);
+      else resolve(value!);
+    };
+
+    timeout = setTimeout(() => {
+      finish(new DerivAuthError("Timed out authorising with Deriv"));
+    }, TIMEOUT_MS);
+
+    ws.on("open", () => {
+      ws.send(JSON.stringify({ authorize: accessToken, req_id: 1 }));
+    });
+
+    ws.on("message", (raw: WebSocket.RawData) => {
+      try {
+        const msg = JSON.parse(raw.toString()) as Record<string, unknown>;
+
+        if (msg.error) {
+          const e = msg.error as { message?: string };
+          finish(new DerivAuthError(e.message ?? "Deriv authorisation failed"));
+          return;
+        }
+
+        if (msg.msg_type === "authorize") {
+          const auth = msg.authorize as Record<string, unknown>;
+          const list = (auth.account_list ?? []) as Array<{
+            loginid: string;
+            token:   string;
+            is_disabled?: number | boolean;
+          }>;
+
+          const accounts = list
+            .filter((a) => !a.is_disabled)
+            .map(({ loginid, token }) => ({ loginid, token }));
+
+          finish(null, accounts);
+        }
+      } catch (err) {
+        finish(err as Error);
+      }
+    });
+
+    ws.on("error", (err) => finish(err as Error));
+
+    ws.on("close", () => {
+      if (!settled) finish(new DerivAuthError("WebSocket closed before accounts were returned"));
+    });
+  });
+}
+
 export async function fetchDerivAccountInfo(token: string): Promise<DerivAccountInfo> {
   return new Promise<DerivAccountInfo>((resolve, reject) => {
     const ws = new WebSocket(DERIV_WS_URL);

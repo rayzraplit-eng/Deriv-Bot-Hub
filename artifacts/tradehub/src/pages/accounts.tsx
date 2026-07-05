@@ -23,47 +23,61 @@ import * as z from "zod";
 // set the redirect URL to your app's URL (e.g. https://yourapp.replit.app/).
 const DERIV_APP_ID = (import.meta.env.VITE_DERIV_APP_ID as string | undefined) ?? "36544";
 
-const DERIV_OAUTH_STATE_KEY = "deriv_oauth_state";
+// Keys stored in localStorage to survive the cross-frame redirect.
+const DERIV_PKCE_VERIFIER_KEY = "deriv_pkce_verifier";
+const DERIV_PKCE_REDIRECT_KEY  = "deriv_pkce_redirect";
 
-function buildDerivOAuthUrl(): string {
-  // Generate a random state token and store it so the callback can verify it
-  // (prevents CSRF / crafted-callback injection attacks).
-  // Use localStorage (not sessionStorage) — sessionStorage is NOT shared between
-  // the Replit iframe and the top-level browser window, so the nonce would be
-  // lost when Deriv redirects back to the top-level frame.
-  const state = crypto.randomUUID();
-  localStorage.setItem(DERIV_OAUTH_STATE_KEY, state);
+// ── PKCE helpers (Web Crypto, works in all modern browsers) ──────────────────
 
-  // Redirect URI points to the dedicated /callback route.
-  // This is the exact URL you register in the Deriv app dashboard:
-  //   https://app.deriv.com/account/apps-and-api  →  App details  →  Redirect URL
-  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-  const redirectUrl = `${window.location.origin}${base}/callback`;
-  return (
-    `https://oauth.deriv.com/oauth2/authorize` +
-    `?app_id=${encodeURIComponent(DERIV_APP_ID)}` +
-    `&l=EN&brand=deriv` +
-    `&scope=${encodeURIComponent("read,trade,payments,admin")}` +
-    `&redirect_uri=${encodeURIComponent(redirectUrl)}` +
-    `&state=${encodeURIComponent(state)}`
-  );
+function generateVerifier(): string {
+  const arr = new Uint8Array(48);
+  crypto.getRandomValues(arr);
+  return btoa(String.fromCharCode(...arr))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
-function loginWithDeriv() {
-  const url = buildDerivOAuthUrl();
+async function deriveChallenge(verifier: string): Promise<string> {
+  const data   = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
 
-  // Full-page redirect — works reliably in all environments including
-  // Replit's iframe preview where popups are blocked. Deriv will redirect
-  // back to this page's origin with ?acct1=...&token1=... params.
+// ── Login redirect ────────────────────────────────────────────────────────────
+
+async function loginWithDeriv() {
+  const verifier  = generateVerifier();
+  const challenge = await deriveChallenge(verifier);
+
+  const base        = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const redirectUri = `${window.location.origin}${base}/callback`;
+
+  // Persist verifier + redirect URI — needed on the callback page to
+  // exchange the code, and localStorage survives the top-frame navigation.
+  localStorage.setItem(DERIV_PKCE_VERIFIER_KEY, verifier);
+  localStorage.setItem(DERIV_PKCE_REDIRECT_KEY,  redirectUri);
+
+  // Deriv new API: Authorization Code + PKCE (not the old implicit token flow).
+  // Register your app at https://app.deriv.com/account/apps-and-api and set
+  // the redirect URL to: <your-app-origin>/callback
+  const url =
+    `https://oauth.deriv.com/oauth2/authorize` +
+    `?app_id=${encodeURIComponent(DERIV_APP_ID)}` +
+    `&response_type=code` +
+    `&code_challenge=${encodeURIComponent(challenge)}` +
+    `&code_challenge_method=S256` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&l=EN&brand=deriv`;
+
+  // Full-page redirect — works in Replit iframe: navigate the top frame so
+  // the OAuth flow isn't trapped inside the sandboxed preview iframe.
   try {
-    // If we're inside an iframe (e.g. Replit preview), navigate the top frame
-    // so the redirect lands on the real window, not inside the iframe.
     if (window.top && window.top !== window.self) {
       window.top.location.href = url;
       return;
     }
   } catch {
-    // Cross-origin access to window.top can throw — fall through to self.
+    // cross-origin top frame — fall through to self navigation.
   }
   window.location.href = url;
 }

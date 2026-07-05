@@ -5,10 +5,12 @@ import botsRouter from "./bots";
 import toolsRouter from "./tools";
 import tradesRouter from "./trades";
 import dashboardRouter from "./dashboard";
+import oauthRouter from "./oauth";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(oauthRouter);
 router.use(accountsRouter);
 router.use(botsRouter);
 router.use(toolsRouter);
