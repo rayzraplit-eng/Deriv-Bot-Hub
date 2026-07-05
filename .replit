@@ -37,3 +37,4 @@ channel = "stable-25_05"
 
 [userenv.shared]
 VITE_DERIV_APP_ID = "33JNdPHf5VZwRTrlSAsG7"
+DERIV_APP_ID = "33JNdPHf5VZwRTrlSAsG7"

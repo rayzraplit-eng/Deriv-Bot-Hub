@@ -28,8 +28,11 @@ const DERIV_OAUTH_STATE_KEY = "deriv_oauth_state";
 function buildDerivOAuthUrl(): string {
   // Generate a random state token and store it so the callback can verify it
   // (prevents CSRF / crafted-callback injection attacks).
+  // Use localStorage (not sessionStorage) — sessionStorage is NOT shared between
+  // the Replit iframe and the top-level browser window, so the nonce would be
+  // lost when Deriv redirects back to the top-level frame.
   const state = crypto.randomUUID();
-  sessionStorage.setItem(DERIV_OAUTH_STATE_KEY, state);
+  localStorage.setItem(DERIV_OAUTH_STATE_KEY, state);
 
   // Redirect URI points to the dedicated /callback route.
   // This is the exact URL you register in the Deriv app dashboard:

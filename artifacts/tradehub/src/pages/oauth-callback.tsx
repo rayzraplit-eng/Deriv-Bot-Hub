@@ -51,8 +51,10 @@ export default function OAuthCallback() {
     window.history.replaceState({}, "", window.location.pathname);
 
     // ── 1. Validate state nonce (CSRF protection) ──────────────────────────
-    const expectedState = sessionStorage.getItem(DERIV_OAUTH_STATE_KEY);
-    sessionStorage.removeItem(DERIV_OAUTH_STATE_KEY);
+    // localStorage is shared between the Replit iframe and the top-level window;
+    // sessionStorage is NOT — so we must use localStorage to survive the redirect.
+    const expectedState = localStorage.getItem(DERIV_OAUTH_STATE_KEY);
+    localStorage.removeItem(DERIV_OAUTH_STATE_KEY);
 
     if (!state || state !== expectedState) {
       setStatus({
