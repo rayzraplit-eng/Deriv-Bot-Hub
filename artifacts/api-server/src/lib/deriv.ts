@@ -1,6 +1,10 @@
 import WebSocket from "ws";
 
-const DERIV_WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089";
+// Use the same app_id registered on https://developers.deriv.com/register-app/register.
+// Must match VITE_DERIV_APP_ID on the frontend so tokens are accepted by Deriv's WS API.
+// Falls back to 36544 (same as frontend default) if DERIV_APP_ID is not set.
+const DERIV_APP_ID = process.env.DERIV_APP_ID ?? "36544";
+const DERIV_WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
 const TIMEOUT_MS = 12_000;
 
 export interface DerivAccountInfo {

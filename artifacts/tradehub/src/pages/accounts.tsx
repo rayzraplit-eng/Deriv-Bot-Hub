@@ -23,47 +23,42 @@ import * as z from "zod";
 // set the redirect URL to your app's URL (e.g. https://yourapp.replit.app/).
 const DERIV_APP_ID = (import.meta.env.VITE_DERIV_APP_ID as string | undefined) ?? "36544";
 
+const DERIV_OAUTH_STATE_KEY = "deriv_oauth_state";
+
 function buildDerivOAuthUrl(): string {
+  // Generate a random state token and store it so the callback can verify it
+  // (prevents CSRF / crafted-callback injection attacks).
+  const state = crypto.randomUUID();
+  sessionStorage.setItem(DERIV_OAUTH_STATE_KEY, state);
+
   // The redirect URL is the app root (where the OAuth callback handler lives).
   const redirectUrl = window.location.origin + import.meta.env.BASE_URL;
   return (
     `https://oauth.deriv.com/oauth2/authorize` +
     `?app_id=${encodeURIComponent(DERIV_APP_ID)}` +
     `&l=EN&brand=deriv` +
-    `&redirect_uri=${encodeURIComponent(redirectUrl)}`
+    `&redirect_uri=${encodeURIComponent(redirectUrl)}` +
+    `&state=${encodeURIComponent(state)}`
   );
 }
 
 function loginWithDeriv() {
   const url = buildDerivOAuthUrl();
 
-  // Preferred flow: open Deriv's login in a small popup window. The user
-  // never leaves the RAYZPRO tab — the popup handles the OAuth round trip,
-  // then posts the result back and closes itself automatically
-  // (see OAuthCallbackHandler in App.tsx for the popup side of this).
-  const width = 480;
-  const height = 720;
-  const left = Math.max(0, (window.screen.width - width) / 2);
-  const top = Math.max(0, (window.screen.height - height) / 2);
-  const popup = window.open(
-    url,
-    "deriv-oauth",
-    `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`,
-  );
-
-  if (!popup) {
-    // Popup blocked by the browser — fall back to a normal full-page
-    // redirect so login still works, just without the popup UX.
-    try {
-      if (window.top && window.top !== window.self) {
-        window.top.location.href = url;
-        return;
-      }
-    } catch {
-      // Cross-origin access to window.top can throw — fall through below.
+  // Full-page redirect — works reliably in all environments including
+  // Replit's iframe preview where popups are blocked. Deriv will redirect
+  // back to this page's origin with ?acct1=...&token1=... params.
+  try {
+    // If we're inside an iframe (e.g. Replit preview), navigate the top frame
+    // so the redirect lands on the real window, not inside the iframe.
+    if (window.top && window.top !== window.self) {
+      window.top.location.href = url;
+      return;
     }
-    window.location.href = url;
+  } catch {
+    // Cross-origin access to window.top can throw — fall through to self.
   }
+  window.location.href = url;
 }
 
 // ── Zod schema ────────────────────────────────────────────────────────────────
