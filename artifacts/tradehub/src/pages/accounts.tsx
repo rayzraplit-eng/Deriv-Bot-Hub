@@ -57,17 +57,17 @@ async function loginWithDeriv() {
   localStorage.setItem(DERIV_PKCE_VERIFIER_KEY, verifier);
   localStorage.setItem(DERIV_PKCE_REDIRECT_KEY,  redirectUri);
 
-  // Deriv new API: Authorization Code + PKCE (not the old implicit token flow).
-  // Register your app at https://app.deriv.com/account/apps-and-api and set
-  // the redirect URL to: <your-app-origin>/callback
+  // Deriv OAuth 2.0 + PKCE (new API — uses client_id, not the old app_id).
+  // Register your app at https://developers.deriv.com/register-app/register
+  // and set the Redirect URL to: <your-app-origin>/callback
   const url =
     `https://oauth.deriv.com/oauth2/authorize` +
-    `?app_id=${encodeURIComponent(DERIV_APP_ID)}` +
+    `?client_id=${encodeURIComponent(DERIV_APP_ID)}` +
     `&response_type=code` +
     `&code_challenge=${encodeURIComponent(challenge)}` +
     `&code_challenge_method=S256` +
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-    `&l=EN&brand=deriv`;
+    `&scope=read+trade`;
 
   // Full-page redirect — works in Replit iframe: navigate the top frame so
   // the OAuth flow isn't trapped inside the sandboxed preview iframe.
