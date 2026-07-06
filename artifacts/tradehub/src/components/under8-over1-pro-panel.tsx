@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button }    from "@/components/ui/button";
+import { Badge }     from "@/components/ui/badge";
+import { Input }     from "@/components/ui/input";
+import { Label }     from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -10,53 +10,54 @@ import {
   Play, Square, TrendingUp, TrendingDown,
   CheckCircle2, XCircle, Eye, Loader2,
   Target, Trophy, ShieldX, AlertTriangle,
+  ArrowDown, ArrowUp,
 } from "lucide-react";
 import {
-  useOver2Under7Pro,
-  PAYOUT_MULTIPLIER,
-  type ProStatus,
-  type ProMode,
-  type ProPhase,
-  type ProTradeType,
-  type ProTrade,
-} from "@/hooks/use-over2-under7-pro";
+  useUnder8Over1Pro,
+  U8O1_PAYOUT,
+  type U8O1Status,
+  type U8O1Mode,
+  type U8O1Phase,
+  type U8O1TradeType,
+  type U8O1Trade,
+} from "@/hooks/use-under8-over1-pro";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SYMBOLS = [
-  { id: "R_10",    label: "Volatility 10"  },
-  { id: "R_25",    label: "Volatility 25"  },
-  { id: "R_50",    label: "Volatility 50"  },
-  { id: "R_75",    label: "Volatility 75"  },
-  { id: "R_100",   label: "Volatility 100" },
-  { id: "1HZ10V",  label: "Vol 10 (1s)"   },
-  { id: "1HZ25V",  label: "Vol 25 (1s)"   },
-  { id: "1HZ50V",  label: "Vol 50 (1s)"   },
-  { id: "1HZ75V",  label: "Vol 75 (1s)"   },
-  { id: "1HZ100V", label: "Vol 100 (1s)"  },
+  { id: "R_10",    label: "Volatility 10"   },
+  { id: "R_25",    label: "Volatility 25"   },
+  { id: "R_50",    label: "Volatility 50"   },
+  { id: "R_75",    label: "Volatility 75"   },
+  { id: "R_100",   label: "Volatility 100"  },
+  { id: "1HZ10V",  label: "Vol 10 (1s)"    },
+  { id: "1HZ25V",  label: "Vol 25 (1s)"    },
+  { id: "1HZ50V",  label: "Vol 50 (1s)"    },
+  { id: "1HZ75V",  label: "Vol 75 (1s)"    },
+  { id: "1HZ100V", label: "Vol 100 (1s)"   },
 ] as const;
 
 const MARTINGALE = 1.8;
 
-const TRADE_META: Record<ProTradeType, { label: string; cls: string; winCls: string }> = {
-  over2:  { label: "OVER 2",  cls: "border-sky-500/60 text-sky-400 bg-sky-500/10",          winCls: "text-sky-400"     },
-  over4:  { label: "OVER 4",  cls: "border-chart-3/60 text-chart-3 bg-chart-3/10",          winCls: "text-chart-3"    },
-  under7: { label: "UNDER 7", cls: "border-violet-500/60 text-violet-400 bg-violet-500/10", winCls: "text-violet-400" },
+const TRADE_META: Record<U8O1TradeType, { label: string; cls: string; winCls: string }> = {
+  under8: { label: "UNDER 8", cls: "border-violet-500/60 text-violet-400 bg-violet-500/10", winCls: "text-violet-400" },
   under5: { label: "UNDER 5", cls: "border-rose-500/60 text-rose-400 bg-rose-500/10",       winCls: "text-rose-400"   },
+  over1:  { label: "OVER 1",  cls: "border-sky-500/60 text-sky-400 bg-sky-500/10",          winCls: "text-sky-400"    },
+  over4:  { label: "OVER 4",  cls: "border-chart-3/60 text-chart-3 bg-chart-3/10",          winCls: "text-chart-3"    },
 };
 
-const STATUS_LABEL: Record<ProStatus, string> = {
-  idle:        "IDLE",
-  buffering:   "LOADING",
-  watching:    "WATCHING",
-  trading:     "TRADING",
-  "max-profit": "PROFIT TARGET HIT",
-  "max-losses": "MAX LOSSES HIT",
+const STATUS_LABEL: Record<U8O1Status, string> = {
+  idle:          "IDLE",
+  buffering:     "LOADING",
+  watching:      "WATCHING",
+  trading:       "TRADING",
+  "max-profit":  "PROFIT TARGET HIT",
+  "max-losses":  "MAX LOSSES HIT",
 };
 
 // ─── Small reusable pieces ────────────────────────────────────────────────────
 
-function TypeBadge({ type }: { type: ProTradeType }) {
+function TypeBadge({ type }: { type: U8O1TradeType }) {
   const m = TRADE_META[type];
   return (
     <Badge variant="outline" className={`font-mono text-[10px] font-bold uppercase shrink-0 ${m.cls}`}>
@@ -66,17 +67,17 @@ function TypeBadge({ type }: { type: ProTradeType }) {
 }
 
 function DigitTile({ digit, highlight, prev }: { digit: number; highlight?: boolean; prev?: boolean }) {
-  const isLow  = digit <= 2;
-  const isHigh = digit >= 7;
+  const isHigh = digit >= 8; // relevant for under-8 side
+  const isLow  = digit <= 1; // relevant for over-1 side
   return (
     <span className={`font-mono text-xs w-6 h-6 rounded flex items-center justify-center font-bold shrink-0 transition-all ${
       highlight
         ? "bg-primary text-primary-foreground scale-110"
         : prev
-        ? isLow
-          ? "bg-sky-500/20 text-sky-400"
-          : isHigh
+        ? isHigh
           ? "bg-violet-500/20 text-violet-400"
+          : isLow
+          ? "bg-sky-500/20 text-sky-400"
           : "bg-muted text-muted-foreground"
         : "bg-muted/60 text-muted-foreground/60"
     }`}>
@@ -85,7 +86,7 @@ function DigitTile({ digit, highlight, prev }: { digit: number; highlight?: bool
   );
 }
 
-function TradeRow({ trade, isNew }: { trade: ProTrade; isNew: boolean }) {
+function TradeRow({ trade, isNew }: { trade: U8O1Trade; isNew: boolean }) {
   const m   = TRADE_META[trade.type];
   const isW = trade.result === "win";
   return (
@@ -110,51 +111,54 @@ function TradeRow({ trade, isNew }: { trade: ProTrade; isNew: boolean }) {
 function PatternHints() {
   return (
     <div className="grid grid-cols-2 gap-2 font-mono text-[10px]">
-      <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-2.5 space-y-1">
-        <div className="flex items-center gap-1 font-bold text-sky-400">
-          <TrendingUp className="h-3 w-3" /> OVER SIDE
-        </div>
-        <div className="text-muted-foreground">Entry: <span className="text-sky-400">2+ digits ≤2</span> → <span className="text-sky-400">≥3</span></div>
-        <div className="text-muted-foreground/70">Trade → <span className="text-sky-400">Over 2</span></div>
-        <div className="text-muted-foreground/70">Loss → wait <span className="text-muted-foreground">≤2→≥3</span></div>
-        <div className="text-muted-foreground/70">Re-entry → <span className="text-chart-3">Over 4</span> ×1.8</div>
-        <div className="text-muted-foreground/70">Further loss → <span className="text-chart-3">Over 4</span> continuous</div>
-      </div>
       <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 p-2.5 space-y-1">
         <div className="flex items-center gap-1 font-bold text-violet-400">
-          <TrendingDown className="h-3 w-3" /> UNDER SIDE
+          <ArrowDown className="h-3 w-3" /> UNDER SIDE
         </div>
-        <div className="text-muted-foreground">Entry: <span className="text-violet-400">2+ digits ≥7</span> → <span className="text-violet-400">≤6</span></div>
-        <div className="text-muted-foreground/70">Trade → <span className="text-violet-400">Under 7</span></div>
-        <div className="text-muted-foreground/70">Loss → wait <span className="text-muted-foreground">≥7→≤6</span></div>
-        <div className="text-muted-foreground/70">Re-entry → <span className="text-rose-400">Under 5</span> ×1.8</div>
-        <div className="text-muted-foreground/70">Further loss → <span className="text-rose-400">Under 5</span> continuous</div>
+        <div className="text-muted-foreground">Condition: <span className="text-violet-400">8,9 least% in 100t</span></div>
+        <div className="text-muted-foreground">Entry: <span className="text-violet-400">prev ≥8</span> → <span className="text-violet-400">curr ≤7</span></div>
+        <div className="text-muted-foreground/70">Trade → <span className="text-violet-400">Under 8</span></div>
+        <div className="text-muted-foreground/70">Loss → <span className="text-rose-400">Under 5</span> ×1.8 continuous</div>
+      </div>
+      <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-2.5 space-y-1">
+        <div className="flex items-center gap-1 font-bold text-sky-400">
+          <ArrowUp className="h-3 w-3" /> OVER SIDE
+        </div>
+        <div className="text-muted-foreground">Condition: <span className="text-sky-400">0,1 least% in 100t</span></div>
+        <div className="text-muted-foreground">Entry: <span className="text-sky-400">prev ≤1</span> → <span className="text-sky-400">curr ≥2</span></div>
+        <div className="text-muted-foreground/70">Trade → <span className="text-sky-400">Over 1</span></div>
+        <div className="text-muted-foreground/70">Loss → <span className="text-chart-3">Over 4</span> ×1.8 continuous</div>
       </div>
     </div>
   );
 }
 
-// ─── Streak indicator ─────────────────────────────────────────────────────────
+// ─── Digit-pair frequency bar ─────────────────────────────────────────────────
 
-function StreakBar({ consecLow, consecHigh }: { consecLow: number; consecHigh: number }) {
-  if (consecLow === 0 && consecHigh === 0) return null;
+function FreqBar({
+  label, pct, cls, active,
+}: { label: string; pct: number; cls: string; active: boolean }) {
+  const isLeast = pct < 20; // below expected 20% for a pair
   return (
-    <div className="flex items-center gap-2 font-mono text-[10px]">
-      {consecLow > 0 && (
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded border border-sky-500/30 bg-sky-500/5">
-          <TrendingUp className="h-2.5 w-2.5 text-sky-400" />
-          <span className="text-sky-400 font-bold">{consecLow}×</span>
-          <span className="text-muted-foreground">≤2 streak</span>
-          {consecLow >= 2 && <span className="text-sky-400 animate-pulse">● ready</span>}
-        </div>
-      )}
-      {consecHigh > 0 && (
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded border border-violet-500/30 bg-violet-500/5">
-          <TrendingDown className="h-2.5 w-2.5 text-violet-400" />
-          <span className="text-violet-400 font-bold">{consecHigh}×</span>
-          <span className="text-muted-foreground">≥7 streak</span>
-          {consecHigh >= 2 && <span className="text-violet-400 animate-pulse">● ready</span>}
-        </div>
+    <div className={`rounded-lg border px-2.5 py-1.5 flex items-center gap-2 ${
+      active
+        ? "border-primary/40 bg-primary/5"
+        : isLeast
+        ? "border-border/50 bg-muted/10"
+        : "border-border/30 bg-transparent"
+    }`}>
+      <span className={`font-mono text-[10px] font-bold ${cls}`}>{label}</span>
+      <div className="flex-1 h-1 rounded-full bg-muted/40 overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${isLeast ? cls.replace("text-", "bg-").replace("400","500/60") : "bg-muted"}`}
+          style={{ width: `${Math.min(pct * 2, 100)}%` }}
+        />
+      </div>
+      <span className={`font-mono text-[9px] tabular-nums ${isLeast ? cls : "text-muted-foreground"}`}>
+        {pct.toFixed(0)}%
+      </span>
+      {isLeast && (
+        <span className={`font-mono text-[9px] animate-pulse ${cls}`}>↓ least</span>
       )}
     </div>
   );
@@ -179,22 +183,26 @@ function ConfigScreen({ form, setForm, onStart }: {
   const lossesVal = parseInt(form.maxLosses);
   const canStart  = stakeVal > 0 && profitVal > 0 && lossesVal >= 1;
 
-  // Preview martingale recovery stakes
+  // Preview recovery martingale stakes
   const recoveryStakes: number[] = [stakeVal];
   for (let i = 0; i < Math.min(lossesVal - 1, 6); i++) {
-    recoveryStakes.push(parseFloat((recoveryStakes[recoveryStakes.length - 1]! * MARTINGALE).toFixed(2)));
+    recoveryStakes.push(
+      parseFloat((recoveryStakes[recoveryStakes.length - 1]! * MARTINGALE).toFixed(2)),
+    );
   }
 
   return (
     <div className="space-y-4 animate-in fade-in duration-200">
       <p className="text-xs text-muted-foreground leading-relaxed">
-        Enters <span className="text-sky-400 font-bold">Over 2</span> after 2+ consecutive digits ≤2, or{" "}
-        <span className="text-violet-400 font-bold">Under 7</span> after 2+ consecutive digits ≥7.
-        On loss, waits for the reversal pattern and escalates to{" "}
-        <span className="text-chart-3 font-bold">Over 4</span> /{" "}
-        <span className="text-rose-400 font-bold">Under 5</span> with{" "}
-        <span className="text-foreground font-bold">×{MARTINGALE} martingale</span>.
-        Further losses trade continuously. Resets on any win.
+        Waits for <span className="text-violet-400 font-bold">digits 8/9</span> to be under-represented in 100 ticks,
+        then enters <span className="text-violet-400 font-bold">Under 8</span> when prev digit ≥8 and curr ≤7.
+        On the other side, waits for{" "}
+        <span className="text-sky-400 font-bold">digits 0/1</span> to be under-represented,
+        then enters <span className="text-sky-400 font-bold">Over 1</span> when prev digit ≤1 and curr ≥2.
+        Any loss immediately escalates to{" "}
+        <span className="text-rose-400 font-bold">Under 5</span>{" "}
+        / <span className="text-chart-3 font-bold">Over 4</span> with{" "}
+        <span className="text-foreground font-bold">×{MARTINGALE} martingale</span> until a win.
       </p>
 
       <PatternHints />
@@ -228,7 +236,7 @@ function ConfigScreen({ form, setForm, onStart }: {
           />
         </div>
 
-        {/* Max profit */}
+        {/* Max Profit */}
         <div className="space-y-1.5">
           <Label className="font-mono text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
             <Trophy className="h-3 w-3" /> Max Profit ($)
@@ -262,11 +270,11 @@ function ConfigScreen({ form, setForm, onStart }: {
         <div className="rounded-lg border border-border/40 bg-muted/10 p-3">
           <div className="font-mono text-[10px] text-muted-foreground uppercase mb-2">Recovery Martingale Preview</div>
           <div className="flex flex-wrap gap-1.5">
-            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-sky-500/40 text-sky-400 bg-sky-500/10">
+            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-violet-500/40 text-violet-400 bg-violet-500/10">
               Entry ${stakeVal.toFixed(2)}
             </span>
             {recoveryStakes.map((s, i) => (
-              <span key={i} className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-chart-3/40 text-chart-3 bg-chart-3/10">
+              <span key={i} className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-rose-500/40 text-rose-400 bg-rose-500/10">
                 Rec #{i + 1} ${s.toFixed(2)}
               </span>
             ))}
@@ -283,7 +291,7 @@ function ConfigScreen({ form, setForm, onStart }: {
         disabled={!canStart}
       >
         <Play className="h-3.5 w-3.5" />
-        Start Over 2 Under 7 Pro
+        Start Under 8 Over 1 Pro
       </Button>
     </div>
   );
@@ -300,10 +308,10 @@ function BotEngine({ cfg, onStop }: { cfg: Cfg; onStop: () => void }) {
     status, wsStatus,
     mode, phase, currentType,
     currentStake, consecutiveLosses,
-    consecLow, consecHigh,
     totalWins, totalLosses, totalPnl,
     trades, recentDigits, tickCount,
-  } = useOver2Under7Pro(cfg.symbol, baseStake, maxProfit, maxLosses, true);
+    pct89, pct01,
+  } = useUnder8Over1Pro(cfg.symbol, baseStake, maxProfit, maxLosses, true);
 
   const newTradeId  = trades[0]?.id ?? "";
   const isLoading   = status === "buffering";
@@ -311,14 +319,27 @@ function BotEngine({ cfg, onStop }: { cfg: Cfg; onStop: () => void }) {
   const pnlPositive = totalPnl > 0;
   const pnlZero     = totalPnl === 0;
 
-  // In rec-watch, show what the next trade will be
-  const pendingType: ProTradeType | null =
-    phase === "rec-watch" && mode
-      ? (mode === "over" ? "over4" : "under5")
-      : null;
-
   return (
     <div className="space-y-3 animate-in fade-in duration-300">
+
+      {/* ── Digit-pair frequency ── */}
+      {tickCount >= 100 && (
+        <div className="space-y-1.5">
+          <div className="font-mono text-[9px] text-muted-foreground uppercase tracking-wide">100-Tick Digit-Pair Frequency</div>
+          <FreqBar
+            label="8 & 9"
+            pct={pct89}
+            cls="text-violet-400"
+            active={mode === "under"}
+          />
+          <FreqBar
+            label="0 & 1"
+            pct={pct01}
+            cls="text-sky-400"
+            active={mode === "over"}
+          />
+        </div>
+      )}
 
       {/* ── Stat row ── */}
       <div className="grid grid-cols-4 gap-2">
@@ -335,7 +356,7 @@ function BotEngine({ cfg, onStop }: { cfg: Cfg; onStop: () => void }) {
           <div className="font-mono text-sm font-bold text-foreground">${currentStake.toFixed(2)}</div>
         </div>
         <div className={`rounded-lg border p-2 text-center ${
-          pnlZero     ? "border-border/50 bg-muted/20"
+          pnlZero      ? "border-border/50 bg-muted/20"
           : pnlPositive ? "border-primary/30 bg-primary/5"
           : "border-rose-500/30 bg-rose-500/5"
         }`}>
@@ -356,7 +377,7 @@ function BotEngine({ cfg, onStop }: { cfg: Cfg; onStop: () => void }) {
             : "border-rose-500/30 bg-rose-500/5"
         }`}>
           {status === "max-profit"
-            ? <Trophy className="h-4 w-4 text-primary shrink-0" />
+            ? <Trophy       className="h-4 w-4 text-primary shrink-0" />
             : <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0" />}
           <div className="font-mono text-xs flex-1">
             <span className={`font-bold ${status === "max-profit" ? "text-primary" : "text-rose-400"}`}>
@@ -372,20 +393,17 @@ function BotEngine({ cfg, onStop }: { cfg: Cfg; onStop: () => void }) {
       {/* ── Mode / phase indicator ── */}
       {mode && !isStopped && (
         <div className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 ${
-          mode === "over"
-            ? "border-sky-500/30 bg-sky-500/5"
-            : "border-violet-500/30 bg-violet-500/5"
+          mode === "under"
+            ? "border-violet-500/30 bg-violet-500/5"
+            : "border-sky-500/30 bg-sky-500/5"
         }`}>
-          {mode === "over"
-            ? <TrendingUp   className="h-4 w-4 text-sky-400 shrink-0"    />
-            : <TrendingDown className="h-4 w-4 text-violet-400 shrink-0" />}
+          {mode === "under"
+            ? <TrendingDown className="h-4 w-4 text-violet-400 shrink-0" />
+            : <TrendingUp   className="h-4 w-4 text-sky-400 shrink-0"    />}
           <div className="font-mono text-xs flex-1 min-w-0">
-            <span className={`font-bold ${mode === "over" ? "text-sky-400" : "text-violet-400"}`}>
-              {mode.toUpperCase()} MODE
+            <span className={`font-bold ${mode === "under" ? "text-violet-400" : "text-sky-400"}`}>
+              {mode === "under" ? "UNDER MODE" : "OVER MODE"}
             </span>
-            {phase === "rec-watch" && (
-              <span className="text-muted-foreground ml-2">awaiting re-trigger…</span>
-            )}
             {phase === "recovery" && (
               <span className="text-muted-foreground ml-2">
                 recovery · {consecutiveLosses} loss{consecutiveLosses !== 1 ? "es" : ""} · ×{MARTINGALE}
@@ -393,23 +411,12 @@ function BotEngine({ cfg, onStop }: { cfg: Cfg; onStop: () => void }) {
             )}
           </div>
           {currentType && <TypeBadge type={currentType} />}
-          {pendingType && (
-            <div className="flex items-center gap-1 shrink-0">
-              <span className="font-mono text-[9px] text-muted-foreground">next:</span>
-              <TypeBadge type={pendingType} />
-            </div>
-          )}
           {phase === "recovery" && (
-            <Badge variant="outline" className="font-mono text-[9px] border-chart-3/40 text-chart-3 bg-chart-3/10 shrink-0">
+            <Badge variant="outline" className="font-mono text-[9px] border-rose-500/40 text-rose-400 bg-rose-500/10 shrink-0">
               RECOVERY
             </Badge>
           )}
         </div>
-      )}
-
-      {/* ── Streak indicator (only while watching) ── */}
-      {(status === "watching" && !mode) && (
-        <StreakBar consecLow={consecLow} consecHigh={consecHigh} />
       )}
 
       {/* ── Recent digits ── */}
@@ -432,9 +439,9 @@ function BotEngine({ cfg, onStop }: { cfg: Cfg; onStop: () => void }) {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Badge variant="outline" className={`font-mono text-[10px] font-bold uppercase ${
-              status === "watching"   ? "border-primary/50 text-primary bg-primary/10"
-              : status === "trading"  ? "border-sky-500/50 text-sky-400 bg-sky-500/10 animate-pulse"
-              : status === "buffering"? "border-chart-3/50 text-chart-3 bg-chart-3/10"
+              status === "watching"    ? "border-primary/50 text-primary bg-primary/10"
+              : status === "trading"   ? "border-violet-500/50 text-violet-400 bg-violet-500/10 animate-pulse"
+              : status === "buffering" ? "border-chart-3/50 text-chart-3 bg-chart-3/10"
               : "border-border/40 text-muted-foreground"
             }`}>
               {isLoading && <Loader2 className="h-2.5 w-2.5 mr-1 animate-spin" />}
@@ -471,14 +478,14 @@ function BotEngine({ cfg, onStop }: { cfg: Cfg; onStop: () => void }) {
           {isLoading ? (
             <>
               <Loader2 className="h-5 w-5 text-muted-foreground/40 mx-auto mb-1.5 animate-spin" />
-              <p className="font-mono text-xs text-muted-foreground">Collecting ticks… {tickCount}/2</p>
+              <p className="font-mono text-xs text-muted-foreground">Collecting ticks… {tickCount}/100</p>
             </>
           ) : (
             <>
               <Eye className="h-5 w-5 text-muted-foreground/40 mx-auto mb-1.5" />
-              <p className="font-mono text-xs text-muted-foreground">Watching for pattern…</p>
+              <p className="font-mono text-xs text-muted-foreground">Watching for entry pattern…</p>
               <p className="font-mono text-[10px] text-muted-foreground/50 mt-1">
-                Over: 2+ digits ≤2 → ≥3 · Under: 2+ digits ≥7 → ≤6
+                Under: 8/9 least% + prev≥8→curr≤7 · Over: 0/1 least% + prev≤1→curr≥2
               </p>
             </>
           )}
@@ -490,7 +497,7 @@ function BotEngine({ cfg, onStop }: { cfg: Cfg; onStop: () => void }) {
 
 // ─── Inline export (used in Master Bot tab) ───────────────────────────────────
 
-export function Over2Under7ProInline() {
+export function Under8Over1ProInline() {
   const [cfg, setCfg]   = useState<Cfg | null>(null);
   const [form, setForm] = useState<Cfg>({
     symbol:    "R_100",
@@ -506,8 +513,8 @@ export function Over2Under7ProInline() {
         <div className="relative">
           <div className="h-14 w-14 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
             <div className="flex flex-col items-center gap-0">
-              <TrendingUp   className="h-3.5 w-3.5 text-sky-400"    />
-              <TrendingDown className="h-3.5 w-3.5 text-violet-400" />
+              <ArrowDown className="h-3.5 w-3.5 text-violet-400" />
+              <ArrowUp   className="h-3.5 w-3.5 text-sky-400"    />
             </div>
           </div>
           {cfg && (
@@ -515,8 +522,8 @@ export function Over2Under7ProInline() {
           )}
         </div>
         <div>
-          <h2 className="font-mono text-xl font-bold tracking-tight text-foreground">OVER 2 UNDER 7 PRO</h2>
-          <p className="font-mono text-xs text-muted-foreground">Streak reversal · ×1.8 recovery martingale</p>
+          <h2 className="font-mono text-xl font-bold tracking-tight text-foreground">UNDER 8 OVER 1 PRO</h2>
+          <p className="font-mono text-xs text-muted-foreground">Digit-pair bias + reversal · ×1.8 recovery</p>
         </div>
         <Badge variant="outline" className="font-mono text-[9px] border-primary/40 text-primary bg-primary/10 uppercase ml-auto shrink-0">
           Live Bot

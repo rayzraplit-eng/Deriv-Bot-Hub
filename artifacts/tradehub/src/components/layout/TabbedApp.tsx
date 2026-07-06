@@ -7,7 +7,8 @@ import Journal from "@/pages/journal";
 import { MasterTraderPanel } from "@/components/master-trader-panel";
 import { MatchesFixerInline } from "@/components/matches-fixer-panel";
 import { ReverseOverUnderInline } from "@/components/reverse-over-under-panel";
-import { Over2Under7ProInline } from "@/components/over2-under7-pro-panel";
+import { Over2Under7ProInline }  from "@/components/over2-under7-pro-panel";
+import { Under8Over1ProInline }  from "@/components/under8-over1-pro-panel";
 import { AnalisisToolSection } from "@/components/analisis-tool-section";
 import { ManualTradingSection } from "@/components/manual-trading-section";
 import { Badge } from "@/components/ui/badge";
@@ -75,6 +76,16 @@ const BOT_LIST: BotEntry[] = [
     icon:     Layers,
     iconCls:  "text-sky-400",
     content:  <Over2Under7ProInline />,
+  },
+  {
+    id:       "under8-over1-pro",
+    label:    "Under 8 Over 1 Pro",
+    sublabel: "Digit-pair bias · Under 8 & Over 1 entry · ×1.8 recovery",
+    badge:    "Live · Pro",
+    badgeCls: "border-violet-500/40 text-violet-400 bg-violet-500/10",
+    icon:     Layers,
+    iconCls:  "text-violet-400",
+    content:  <Under8Over1ProInline />,
   },
 ];
 
