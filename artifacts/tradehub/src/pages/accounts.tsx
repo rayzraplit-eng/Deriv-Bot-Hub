@@ -4,30 +4,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
-import { Wallet, Plus, Trash2, CheckCircle2, Clock, AlertCircle, LogIn, ExternalLink, KeyRound, RefreshCw } from "lucide-react";
+import { Wallet, Trash2, CheckCircle2, Clock, AlertCircle, LogIn, ExternalLink, KeyRound, RefreshCw, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
 // ── Deriv OAuth helpers ───────────────────────────────────────────────────────
 
-// Default app_id — users can override via env var VITE_DERIV_APP_ID.
-// Register your own at https://developers.deriv.com/register-app/register and
-// set the redirect URL to your app's URL (e.g. https://yourapp.replit.app/).
+// OAuth client_id — set via VITE_DERIV_APP_ID env var.
+// Register at https://developers.deriv.com/register-app/register
 const DERIV_APP_ID = (import.meta.env.VITE_DERIV_APP_ID as string | undefined) ?? "36544";
 
-// Keys stored in localStorage to survive the cross-frame redirect.
-const DERIV_PKCE_VERIFIER_KEY = "deriv_pkce_verifier";
-const DERIV_PKCE_REDIRECT_KEY  = "deriv_pkce_redirect";
+// localStorage keys shared with the callback page.
+export const DERIV_PKCE_VERIFIER_KEY = "deriv_pkce_verifier";
+export const DERIV_PKCE_REDIRECT_KEY = "deriv_pkce_redirect";
+// Signal written by the callback page so this page refreshes after OAuth.
+export const DERIV_OAUTH_DONE_KEY    = "deriv_oauth_done";
 
-// ── PKCE helpers (Web Crypto, works in all modern browsers) ──────────────────
+// ── PKCE helpers ──────────────────────────────────────────────────────────────
 
 function generateVerifier(): string {
   const arr = new Uint8Array(48);
@@ -43,23 +43,36 @@ async function deriveChallenge(verifier: string): Promise<string> {
     .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
-// ── Login redirect ────────────────────────────────────────────────────────────
+// ── OAuth redirect ────────────────────────────────────────────────────────────
+//
+// Strategy: open Deriv's OAuth page in a NEW TAB (_blank).
+//
+// Why not iframe / window.top?
+//   • Deriv sets X-Frame-Options: DENY — their auth page blocks loading inside
+//     any iframe, so navigating the preview pane's inner frame just shows an
+//     error.
+//   • window.top navigation is blocked by Replit's sandbox policy.
+//
+// New-tab approach works in:
+//   • Desktop browser (Replit IDE preview, standalone tab)
+//   • Mobile browser (phone)
+//   • Popup blockers: we fall back to same-window navigation when window.open
+//     returns null so there's always a working path.
+//
+// After the user authorises on Deriv, the callback page:
+//   1. Exchanges the code and saves accounts.
+//   2. Writes `deriv_oauth_done` to localStorage — this fires the `storage`
+//      event in ALL other tabs on the same origin, so this page auto-refreshes.
+//   3. Closes the tab (or navigates to `/` if it cannot close itself).
 
-async function loginWithDeriv() {
+async function buildOAuthUrl(): Promise<{ url: string; redirectUri: string; verifier: string }> {
   const verifier  = generateVerifier();
   const challenge = await deriveChallenge(verifier);
 
-  const base        = import.meta.env.BASE_URL.replace(/\/$/, "");
-  const redirectUri = `${window.location.origin}${base}/callback`;
+  // The redirect_uri must EXACTLY match what is registered in Deriv's developer
+  // portal (only origin + /callback — no extra path segments, no trailing slash).
+  const redirectUri = `${window.location.origin}/callback`;
 
-  // Persist verifier + redirect URI — needed on the callback page to
-  // exchange the code, and localStorage survives the top-frame navigation.
-  localStorage.setItem(DERIV_PKCE_VERIFIER_KEY, verifier);
-  localStorage.setItem(DERIV_PKCE_REDIRECT_KEY,  redirectUri);
-
-  // Deriv OAuth 2.0 + PKCE (new API — uses client_id, not the old app_id).
-  // Register your app at https://developers.deriv.com/register-app/register
-  // and set the Redirect URL to: <your-app-origin>/callback
   const url =
     `https://oauth.deriv.com/oauth2/authorize` +
     `?client_id=${encodeURIComponent(DERIV_APP_ID)}` +
@@ -67,19 +80,9 @@ async function loginWithDeriv() {
     `&code_challenge=${encodeURIComponent(challenge)}` +
     `&code_challenge_method=S256` +
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-    `&scope=read+trade`;
+    `&scope=read%20trade`;          // space must be %20, not +
 
-  // Full-page redirect — works in Replit iframe: navigate the top frame so
-  // the OAuth flow isn't trapped inside the sandboxed preview iframe.
-  try {
-    if (window.top && window.top !== window.self) {
-      window.top.location.href = url;
-      return;
-    }
-  } catch {
-    // cross-origin top frame — fall through to self navigation.
-  }
-  window.location.href = url;
+  return { url, redirectUri, verifier };
 }
 
 // ── Zod schema ────────────────────────────────────────────────────────────────
