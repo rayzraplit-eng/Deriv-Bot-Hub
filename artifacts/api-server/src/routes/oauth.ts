@@ -1,9 +1,12 @@
 /**
- * POST /oauth/exchange
+ * OAuth routes:
  *
- * Exchanges a Deriv PKCE authorisation code for an access_token, then uses
- * that token to authorise a Deriv WebSocket connection and retrieve all
- * linked accounts via the `account_list` field of the `authorize` response.
+ * POST /oauth/exchange  — Deriv PKCE flow: exchange auth code for access_token,
+ *                         then fetch all linked account tokens via WebSocket.
+ *
+ * POST /oauth/tokens    — Deriv implicit flow: accept acct/token pairs that
+ *                         Deriv redirected directly in the callback URL params
+ *                         (?acct1=CR123&token1=xxx…). Stores/updates each account.
  */
 
 import { Router, type IRouter } from "express";
@@ -15,6 +18,55 @@ const router: IRouter = Router();
 
 const DERIV_APP_ID   = process.env.DERIV_APP_ID ?? "36544";
 const TOKEN_ENDPOINT = "https://oauth.deriv.com/oauth2/token";
+
+// ── Shared helper: persist a list of {loginid, token} pairs ──────────────────
+
+async function saveAccounts(
+  accounts: Array<{ loginid: string; token: string }>,
+  log: { warn(obj: object, msg: string): void },
+): Promise<number> {
+  const existingRows = await db.select().from(accountsTable);
+  const isFirstBatch = existingRows.length === 0;
+  let savedCount = 0;
+
+  for (const { loginid, token } of accounts) {
+    let info;
+    try {
+      info = await fetchDerivAccountInfo(token);
+    } catch (err) {
+      log.warn({ err, loginid }, "Could not fetch account info — skipping");
+      continue;
+    }
+
+    const [existing] = await db
+      .select()
+      .from(accountsTable)
+      .where(eq(accountsTable.loginid, loginid));
+
+    if (existing) {
+      await db
+        .update(accountsTable)
+        .set({ apiToken: token, balance: info.balance, currency: info.currency })
+        .where(eq(accountsTable.loginid, loginid));
+    } else {
+      await db.insert(accountsTable).values({
+        label:       loginid,
+        apiToken:    token,
+        loginid:     info.loginid,
+        accountType: info.accountType,
+        currency:    info.currency,
+        balance:     info.balance,
+        email:       info.email,
+        country:     info.country,
+        isActive:    isFirstBatch && savedCount === 0,
+      });
+    }
+
+    savedCount++;
+  }
+
+  return savedCount;
+}
 
 router.post("/oauth/exchange", async (req, res): Promise<void> => {
   const { code, codeVerifier, redirectUri } = req.body as Record<string, unknown>;
@@ -77,48 +129,47 @@ router.post("/oauth/exchange", async (req, res): Promise<void> => {
     return;
   }
 
-  // ── 3. Upsert each account into DB (check loginid first — no DB unique constraint) ──
-  const existingRows = await db.select().from(accountsTable);
-  const isFirstBatch = existingRows.length === 0;
-  let savedCount = 0;
+  // ── 3. Persist accounts ────────────────────────────────────────────────────
+  const savedCount = await saveAccounts(accounts, req.log);
+  res.json({ count: savedCount });
+});
 
-  for (const { loginid, token } of accounts) {
-    let info;
-    try {
-      info = await fetchDerivAccountInfo(token);
-    } catch (err) {
-      req.log.warn({ err, loginid }, "Could not fetch account info — skipping");
-      continue;
-    }
+// ── POST /oauth/tokens — Deriv old implicit flow ──────────────────────────────
+//
+// Called by the frontend callback when Deriv redirects with:
+//   ?acct1=CR123&token1=xxx&acct2=VRTC456&token2=yyy…
+// instead of the newer ?code= PKCE format.
 
-    // Check if this loginid already exists and update, or insert fresh.
-    const [existing] = await db
-      .select()
-      .from(accountsTable)
-      .where(eq(accountsTable.loginid, loginid));
+router.post("/oauth/tokens", async (req, res): Promise<void> => {
+  const { accounts } = req.body as Record<string, unknown>;
 
-    if (existing) {
-      await db
-        .update(accountsTable)
-        .set({ apiToken: token, balance: info.balance, currency: info.currency })
-        .where(eq(accountsTable.loginid, loginid));
-    } else {
-      await db.insert(accountsTable).values({
-        label:       loginid,
-        apiToken:    token,
-        loginid:     info.loginid,
-        accountType: info.accountType,
-        currency:    info.currency,
-        balance:     info.balance,
-        email:       info.email,
-        country:     info.country,
-        isActive:    isFirstBatch && savedCount === 0,
-      });
-    }
-
-    savedCount++;
+  if (
+    !Array.isArray(accounts) ||
+    accounts.length === 0 ||
+    accounts.some(
+      (a) =>
+        typeof a !== "object" ||
+        a === null ||
+        typeof (a as Record<string, unknown>).loginid !== "string" ||
+        typeof (a as Record<string, unknown>).token !== "string",
+    )
+  ) {
+    res.status(400).json({
+      error: "Body must be { accounts: [{ loginid: string; token: string }] }",
+    });
+    return;
   }
 
+  const typedAccounts = (accounts as Array<{ loginid: string; token: string }>).filter(
+    ({ loginid, token }) => loginid && token,
+  );
+
+  if (typedAccounts.length === 0) {
+    res.status(400).json({ error: "No valid accounts provided" });
+    return;
+  }
+
+  const savedCount = await saveAccounts(typedAccounts, req.log);
   res.json({ count: savedCount });
 });
 

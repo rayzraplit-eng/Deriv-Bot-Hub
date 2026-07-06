@@ -265,7 +265,9 @@ export default function Accounts() {
               </p>
               <div className="flex items-center gap-2 mt-1">
                 <code className="text-[10px] bg-background/60 border border-border/50 px-2 py-1 rounded text-foreground/80 select-all break-all">
-                  {typeof window !== "undefined" ? window.location.origin + import.meta.env.BASE_URL : ""}
+                  {typeof window !== "undefined"
+                    ? window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, "") + "/callback"
+                    : ""}
                 </code>
                 <Button
                   type="button"
@@ -273,7 +275,9 @@ export default function Accounts() {
                   size="sm"
                   className="h-6 px-2 text-[10px] font-mono shrink-0"
                   onClick={() => {
-                    navigator.clipboard.writeText(window.location.origin + import.meta.env.BASE_URL);
+                    navigator.clipboard.writeText(
+                      window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, "") + "/callback"
+                    );
                   }}
                 >
                   Copy

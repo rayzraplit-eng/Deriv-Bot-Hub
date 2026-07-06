@@ -37,42 +37,96 @@ export default function OAuthCallback() {
     // Strip params from the URL immediately so a page reload doesn't re-trigger.
     window.history.replaceState({}, "", window.location.pathname);
 
-    const code = params.get("code");
+    const apiBase = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-    if (!code) {
-      // Deriv returned an error or the URL is malformed.
-      const errDesc = params.get("error_description") ?? params.get("error") ?? "No authorisation code returned.";
+    // ── Detect which Deriv OAuth format was used ──────────────────────────────
+    //
+    // New PKCE flow  → Deriv returns ?code=<auth-code>
+    // Old implicit flow → Deriv returns ?acct1=CR123&token1=xxx&acct2=...
+    //
+    // We support both so the app works regardless of the app registration type.
+
+    const code   = params.get("code");
+    const token1 = params.get("token1");
+
+    // ── Handle Deriv errors ───────────────────────────────────────────────────
+    if (!code && !token1) {
+      const errDesc =
+        params.get("error_description") ??
+        params.get("error") ??
+        "No authorisation data returned by Deriv. Make sure your Redirect URL is registered correctly.";
       setStatus({ kind: "error", message: errDesc });
       return;
     }
 
-    // Retrieve the PKCE verifier + redirect URI stored before the redirect.
-    const codeVerifier = localStorage.getItem(DERIV_PKCE_VERIFIER_KEY);
-    const redirectUri  = localStorage.getItem(DERIV_PKCE_REDIRECT_KEY);
-    localStorage.removeItem(DERIV_PKCE_VERIFIER_KEY);
-    localStorage.removeItem(DERIV_PKCE_REDIRECT_KEY);
+    // ── Path A: New PKCE flow (?code=…) ──────────────────────────────────────
+    if (code) {
+      const codeVerifier = localStorage.getItem(DERIV_PKCE_VERIFIER_KEY);
+      const redirectUri  = localStorage.getItem(DERIV_PKCE_REDIRECT_KEY);
+      localStorage.removeItem(DERIV_PKCE_VERIFIER_KEY);
+      localStorage.removeItem(DERIV_PKCE_REDIRECT_KEY);
 
-    if (!codeVerifier || !redirectUri) {
-      setStatus({
-        kind:    "error",
-        message: "PKCE verifier missing — please try logging in again.",
-      });
+      if (!codeVerifier || !redirectUri) {
+        setStatus({
+          kind:    "error",
+          message: "PKCE verifier missing — please try logging in again.",
+        });
+        return;
+      }
+
+      setStatus({ kind: "processing", progress: "Exchanging code for tokens…" });
+
+      fetch(`${apiBase}/api/oauth/exchange`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ code, codeVerifier, redirectUri }),
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: "Unknown error" }));
+            throw new Error(err?.error ?? `Token exchange failed (${res.status})`);
+          }
+          return res.json() as Promise<{ count: number }>;
+        })
+        .then(({ count }) => {
+          qc.invalidateQueries({ queryKey: getListAccountsQueryKey() });
+          qc.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+          setStatus({ kind: "success", count });
+          setTimeout(() => navigate("/accounts"), 1200);
+        })
+        .catch((err: Error) => {
+          setStatus({ kind: "error", message: err.message });
+        });
+
       return;
     }
 
-    setStatus({ kind: "processing", progress: "Exchanging code for tokens…" });
+    // ── Path B: Old implicit flow (?acct1=…&token1=…) ────────────────────────
+    // Deriv passes paired acctN / tokenN query params (N = 1, 2, 3…).
+    setStatus({ kind: "processing", progress: "Connecting accounts…" });
 
-    const apiBase = import.meta.env.BASE_URL.replace(/\/$/, "");
+    const accounts: Array<{ loginid: string; token: string }> = [];
+    for (let n = 1; ; n++) {
+      const loginid = params.get(`acct${n}`);
+      const token   = params.get(`token${n}`);
+      if (!loginid || !token) break;
+      accounts.push({ loginid, token });
+    }
 
-    fetch(`${apiBase}/api/oauth/exchange`, {
+    if (accounts.length === 0) {
+      setStatus({ kind: "error", message: "No account tokens returned by Deriv." });
+      return;
+    }
+
+    fetch(`${apiBase}/api/oauth/tokens`, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ code, codeVerifier, redirectUri }),
+      body:    JSON.stringify({ accounts }),
     })
       .then(async (res) => {
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: "Unknown error" }));
-          throw new Error(err?.error ?? `Token exchange failed (${res.status})`);
+          throw new Error(err?.error ?? `Account save failed (${res.status})`);
         }
         return res.json() as Promise<{ count: number }>;
       })
