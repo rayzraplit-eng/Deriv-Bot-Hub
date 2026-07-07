@@ -8,15 +8,23 @@ import type { DerivTickStatus } from "@/hooks/use-deriv-ticks";
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
 
 const SYMBOLS = [
-  { id: "R_10", label: "Volatility 10" },
-  { id: "R_25", label: "Volatility 25" },
-  { id: "R_50", label: "Volatility 50" },
-  { id: "R_75", label: "Volatility 75" },
-  { id: "R_100", label: "Volatility 100" },
-  { id: "1HZ10V", label: "Vol 10 (1s)" },
-  { id: "1HZ100V", label: "Vol 100 (1s)" },
-  { id: "BOOM1000", label: "Boom 1000" },
-  { id: "CRASH500", label: "Crash 500" },
+  // Standard volatility indices
+  { id: "R_10",    label: "Volatility 10"         },
+  { id: "R_25",    label: "Volatility 25"         },
+  { id: "R_50",    label: "Volatility 50"         },
+  { id: "R_75",    label: "Volatility 75"         },
+  { id: "R_100",   label: "Volatility 100"        },
+  // 1-second volatility indices (new Deriv)
+  { id: "1HZ10V",  label: "Volatility 10 (1s)"   },
+  { id: "1HZ25V",  label: "Volatility 25 (1s)"   },
+  { id: "1HZ50V",  label: "Volatility 50 (1s)"   },
+  { id: "1HZ75V",  label: "Volatility 75 (1s)"   },
+  { id: "1HZ100V", label: "Volatility 100 (1s)"  },
+  // Boom & Crash
+  { id: "BOOM1000",  label: "Boom 1000"           },
+  { id: "BOOM500",   label: "Boom 500"            },
+  { id: "CRASH1000", label: "Crash 1000"          },
+  { id: "CRASH500",  label: "Crash 500"           },
 ];
 
 function ConnectionBadge({ status }: { status: DerivTickStatus }) {
