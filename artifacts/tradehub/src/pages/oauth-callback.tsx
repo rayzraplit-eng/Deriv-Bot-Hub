@@ -29,7 +29,7 @@ const DERIV_OAUTH_DONE_KEY    = "deriv_oauth_done";
 type Status =
   | { kind: "processing"; progress: string }
   | { kind: "success";    count: number }
-  | { kind: "error";      message: string; detail?: string };
+  | { kind: "error";      message: string; detail?: string; debugParams?: Record<string, string> };
 
 /** Signal success to the opener tab, then close this tab. */
 function signalAndClose(count: number) {
@@ -72,13 +72,24 @@ export default function OAuthCallback() {
 
     // ── Error from Deriv ─────────────────────────────────────────────────────
     if (!code && !token1) {
-      const msg = params.get("error_description") ?? params.get("error");
+      // Collect ALL query params for debugging — whatever Deriv sent
+      const allParams: Record<string, string> = {};
+      params.forEach((v, k) => { allParams[k] = v; });
+      const paramCount = Object.keys(allParams).length;
+
+      const derivError       = params.get("error");
+      const derivDescription = params.get("error_description");
+      const hasDerivError    = Boolean(derivError || derivDescription);
+
       setStatus({
         kind:    "error",
-        message: msg ?? "No authorisation data returned by Deriv.",
-        detail:  msg
+        message: derivDescription ?? derivError ?? "No authorisation data returned by Deriv.",
+        detail:  hasDerivError
           ? undefined
-          : "Make sure your Redirect URL is registered correctly in the Deriv developer portal.",
+          : paramCount === 0
+            ? "Deriv redirected here without any parameters. The Redirect URL registered in the Deriv developer portal must exactly match the URL shown in the Accounts page."
+            : `Unknown response — ${paramCount} param(s) received: ${JSON.stringify(allParams)}`,
+        debugParams: allParams,
       });
       return;
     }
@@ -218,13 +229,51 @@ export default function OAuthCallback() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
-            <div className="text-center space-y-2 max-w-xs">
-              <p className="text-sm font-semibold text-foreground font-mono">Login failed</p>
-              <p className="text-xs text-destructive/80 font-mono leading-relaxed">{status.message}</p>
+
+            <div className="w-full max-w-xs space-y-3">
+              <p className="text-sm font-semibold text-foreground font-mono text-center">Login failed</p>
+              <p className="text-xs text-destructive/80 font-mono leading-relaxed text-center">{status.message}</p>
               {status.detail && (
-                <p className="text-[11px] text-muted-foreground font-mono leading-relaxed">{status.detail}</p>
+                <p className="text-[11px] text-muted-foreground font-mono leading-relaxed text-center">{status.detail}</p>
+              )}
+
+              {/* Required redirect URL — what to register on developers.deriv.com */}
+              <div className="rounded border border-amber-500/30 bg-amber-500/10 p-3 space-y-1.5">
+                <p className="text-[10px] font-mono text-amber-400 font-semibold uppercase tracking-wider">
+                  Register this exact URL on developers.deriv.com:
+                </p>
+                <code className="text-[11px] font-mono text-foreground/90 break-all select-all leading-relaxed block">
+                  {`${window.location.origin}/callback`}
+                </code>
+                <button
+                  onClick={() => navigator.clipboard.writeText(`${window.location.origin}/callback`)}
+                  className="text-[10px] font-mono text-amber-400 underline underline-offset-2"
+                >
+                  Copy
+                </button>
+              </div>
+
+              {/* Debug params — shows exactly what Deriv sent back */}
+              {status.debugParams && Object.keys(status.debugParams).length > 0 && (
+                <div className="rounded border border-border/40 bg-muted/20 p-3">
+                  <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider mb-1.5">
+                    Params Deriv sent:
+                  </p>
+                  {Object.entries(status.debugParams).map(([k, v]) => (
+                    <div key={k} className="text-[10px] font-mono flex gap-1">
+                      <span className="text-primary shrink-0">{k}:</span>
+                      <span className="text-foreground/70 break-all">{v}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {status.debugParams && Object.keys(status.debugParams).length === 0 && (
+                <p className="text-[10px] font-mono text-muted-foreground/50 text-center">
+                  (No URL parameters — Deriv sent no data)
+                </p>
               )}
             </div>
+
             <div className="flex gap-3">
               <button
                 onClick={() => navigate("/accounts")}
