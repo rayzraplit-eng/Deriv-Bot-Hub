@@ -1,13 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bot, Download, Star, Zap, TrendingUp, Shield, Radio, Crown } from "lucide-react";
+import { Bot, Download, Star, Zap, TrendingUp, Shield, Radio, Crown, Sparkles } from "lucide-react";
 import { useImportBot } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { MatchesFixerPanel } from "@/components/matches-fixer-panel";
 import { MasterOverUnderPanel } from "@/components/master-over-under-panel";
+import { DiffersProPanel } from "@/components/differs-pro-panel";
 
 type FreeBot = {
   name: string;
@@ -122,6 +123,7 @@ export function FreeBotsSection() {
   const [importingName, setImportingName] = useState<string | null>(null);
   const [fixerOpen, setFixerOpen] = useState(false);
   const [masterOpen, setMasterOpen] = useState(false);
+  const [differsOpen, setDiffersOpen] = useState(false);
 
   const handleImport = (bot: FreeBot) => {
     setImportingName(bot.name);
@@ -170,7 +172,7 @@ export function FreeBotsSection() {
           FREE BOTS
         </h2>
         <Badge variant="outline" className="font-mono text-[10px] border-primary/40 text-primary bg-primary/10">
-          {FREE_BOTS.length + 2} AVAILABLE
+          {FREE_BOTS.length + 3} AVAILABLE
         </Badge>
       </div>
       <p className="text-sm text-muted-foreground font-mono mb-4">
@@ -331,10 +333,60 @@ export function FreeBotsSection() {
             </div>
           </CardContent>
         </Card>
+
+        {/* ── Differs Pro — Live Bot card ── */}
+        <Card className="border-primary/30 shadow-md bg-card/50 backdrop-blur-sm hover:border-primary/60 transition-colors relative group overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/8 to-transparent pointer-events-none" />
+          <div className="absolute top-3 right-3 h-2 w-2 rounded-full bg-primary animate-ping" />
+          <CardHeader className="pb-3 relative z-10">
+            <div className="flex items-start justify-between gap-2">
+              <CardTitle className="font-mono text-sm leading-tight">Differs Pro</CardTitle>
+              <Badge variant="outline" className="font-mono text-[10px] uppercase border-primary/50 text-primary bg-primary/10 shrink-0">
+                Live
+              </Badge>
+            </div>
+            <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground font-mono">
+              <span className="flex items-center gap-1">
+                <Star className="h-3 w-3 fill-chart-3 text-chart-3" />
+                4.9
+              </span>
+              <span className="flex items-center gap-1">
+                <Radio className="h-3 w-3 text-primary" />
+                Real-time
+              </span>
+              <span className="text-muted-foreground/70">10 Markets</span>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3 relative z-10">
+            <p className="text-xs text-muted-foreground leading-relaxed min-h-[40px]">
+              Watches all 10 volatility indices at once over 75 ticks for the least-appearing digit. Fires a Differs trade
+              (up to 10 at once) the instant it shifts. On a loss, recovers on the leading side — Over 3 or Under 6 — with
+              ×2 martingale.
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {["differs", "digits", "martingale", "multi-market", "recovery"].map((t) => (
+                <Badge key={t} variant="outline" className="font-mono text-[9px] px-1.5 py-0 h-4 border-primary/30 text-primary/70 uppercase">
+                  {t}
+                </Badge>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                size="sm"
+                className="flex-1 font-mono text-xs h-8"
+                onClick={() => setDiffersOpen(true)}
+              >
+                <Sparkles className="h-3 w-3 mr-1" />
+                Launch Bot
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <MatchesFixerPanel open={fixerOpen} onClose={() => setFixerOpen(false)} />
       <MasterOverUnderPanel open={masterOpen} onClose={() => setMasterOpen(false)} />
+      <DiffersProPanel open={differsOpen} onClose={() => setDiffersOpen(false)} />
     </section>
   );
 }
