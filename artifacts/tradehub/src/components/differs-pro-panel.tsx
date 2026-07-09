@@ -37,6 +37,7 @@ function StatusBadge({ status }: { status: DifferStatus }) {
     watching: { label: "WATCHING", cls: "border-primary/50 text-primary bg-primary/10" },
     recovering: { label: "RECOVERING", cls: "border-chart-3/70 text-chart-3 bg-chart-3/15" },
     "max-losses": { label: "MAX LOSSES", cls: "border-destructive/60 text-destructive bg-destructive/10" },
+    "max-profit": { label: "PROFIT HIT", cls: "border-primary/60 text-primary bg-primary/15" },
   };
   const { label, cls } = map[status];
   return (
@@ -125,6 +126,7 @@ function MarketTile({ market }: { market: DifferMarket }) {
 
 type ConfigForm = {
   stake: string;
+  maxProfit: string;
   maxLosses: string;
 };
 
@@ -138,8 +140,9 @@ function ConfigScreen({
   onStart: () => void;
 }) {
   const stakeVal = parseFloat(form.stake);
+  const profitVal = parseFloat(form.maxProfit);
   const lossesVal = parseInt(form.maxLosses);
-  const canStart = stakeVal > 0 && lossesVal >= 1;
+  const canStart = stakeVal > 0 && profitVal > 0 && lossesVal >= 1;
 
   return (
     <div className="space-y-4 animate-in fade-in duration-200">
@@ -167,6 +170,20 @@ function ConfigScreen({
             className="font-mono text-xs h-8 border-border/60"
           />
           <p className="text-[10px] text-muted-foreground">Applied per-market — each of the 10 markets trades independently at this stake.</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="font-mono text-xs text-muted-foreground uppercase">Max Profit ($)</Label>
+          <Input
+            type="number"
+            min="0.01"
+            step="0.01"
+            placeholder="e.g. 10.00"
+            value={form.maxProfit}
+            onChange={(e) => setForm((f) => ({ ...f, maxProfit: e.target.value }))}
+            className="font-mono text-xs h-8 border-border/60"
+          />
+          <p className="text-[10px] text-muted-foreground">Combined profit across all 10 markets. New trades stop once this is reached.</p>
         </div>
 
         <div className="space-y-1.5">
@@ -211,19 +228,34 @@ function ConfigScreen({
 
 function BotEngine({ cfg, onStop }: { cfg: ConfigForm; onStop: () => void }) {
   const baseStake = parseFloat(cfg.stake) || 1;
+  const maxProfit = parseFloat(cfg.maxProfit) || 0;
   const maxLosses = parseInt(cfg.maxLosses) || 5;
 
-  const { markets, allTrades, activeCount, recoveringCount, maxedOutCount, readyCount, liveCount } = useDiffersPro(
-    baseStake,
-    maxLosses,
-    true,
-  );
+  const {
+    markets,
+    allTrades,
+    totalPnl,
+    activeCount,
+    recoveringCount,
+    maxedOutCount,
+    readyCount,
+    liveCount,
+    isMaxProfit,
+  } = useDiffersPro(baseStake, maxProfit, maxLosses, true);
 
   const allMaxed = maxedOutCount === markets.length;
+  const isStopped = isMaxProfit || allMaxed;
   const freshIds = new Set(allTrades.slice(0, 1).map((t) => t.id));
 
   return (
     <div className="space-y-4 animate-in fade-in duration-300">
+      <div className="rounded-lg border border-border/40 bg-muted/10 p-3 flex items-center justify-between">
+        <span className="font-mono text-[10px] text-muted-foreground uppercase">Combined P&amp;L</span>
+        <span className={`font-mono text-base font-bold ${totalPnl >= 0 ? "text-primary" : "text-destructive"}`}>
+          {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)} <span className="text-[10px] text-muted-foreground">/ ${maxProfit.toFixed(2)} target</span>
+        </span>
+      </div>
+
       <div className="grid grid-cols-4 gap-2">
         <div className="rounded-lg border border-border/50 bg-muted/20 p-2 text-center">
           <div className="font-mono text-[9px] text-muted-foreground uppercase mb-1">Live</div>
@@ -255,14 +287,21 @@ function BotEngine({ cfg, onStop }: { cfg: ConfigForm; onStop: () => void }) {
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
-          {activeCount > 0 && !allMaxed && (
+          {activeCount > 0 && !isStopped && (
             <span className="flex items-center gap-1">
               <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
               {activeCount} market(s) active
             </span>
           )}
         </div>
-        {allMaxed ? (
+        {isMaxProfit ? (
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs text-primary flex items-center gap-1">
+              <Sparkles className="h-3.5 w-3.5" /> Profit target reached
+            </span>
+            <Button size="sm" variant="outline" className="font-mono text-xs h-7" onClick={onStop}>Reset</Button>
+          </div>
+        ) : allMaxed ? (
           <div className="flex items-center gap-2">
             <span className="font-mono text-xs text-destructive flex items-center gap-1">
               <AlertTriangle className="h-3.5 w-3.5" /> All markets hit max losses
@@ -300,7 +339,7 @@ function BotEngine({ cfg, onStop }: { cfg: ConfigForm; onStop: () => void }) {
 ───────────────────────────────────────────────────────────────────────── */
 export function DiffersProInline() {
   const [cfg, setCfg] = useState<ConfigForm | null>(null);
-  const [form, setForm] = useState<ConfigForm>({ stake: "1", maxLosses: "5" });
+  const [form, setForm] = useState<ConfigForm>({ stake: "1", maxProfit: "10", maxLosses: "5" });
 
   return (
     <section className="max-w-md mx-auto space-y-5 animate-in fade-in duration-500 px-1">
@@ -336,7 +375,7 @@ export function DiffersProInline() {
 ───────────────────────────────────────────────────────────────────────── */
 export function DiffersProPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [cfg, setCfg] = useState<ConfigForm | null>(null);
-  const [form, setForm] = useState<ConfigForm>({ stake: "1", maxLosses: "5" });
+  const [form, setForm] = useState<ConfigForm>({ stake: "1", maxProfit: "10", maxLosses: "5" });
 
   function handleClose() {
     setCfg(null);

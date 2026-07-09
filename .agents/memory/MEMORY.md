@@ -4,3 +4,4 @@
 - [Workflow port conflicts](workflow-port-conflicts.md) — EADDRINUSE on artifact workflow restart means find & kill stale processes on that port, restart_workflow alone won't fix it
 - [Deriv dual ID system](deriv-dual-ids.md) — OAuth uses alphanumeric client_id (VITE_DERIV_APP_ID); WebSocket needs numeric app_id (VITE_DERIV_WS_APP_ID, fallback 36544)
 - [Deriv OAuth new-tab flow](deriv-oauth-flow.md) — login opens OAuth in new tab (window.open _blank); callback signals back via localStorage storage event + postMessage; noopener breaks postMessage so omit it
+- [Multi-market bot kill-switch pattern](differs-pro-multi-market-gating.md) — gate cross-symbol stop conditions (e.g. max-profit) with a shared ref, not React state, to avoid render-lag entry bugs

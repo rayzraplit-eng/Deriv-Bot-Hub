@@ -10,7 +10,8 @@ export type DifferStatus =
   | "buffering"
   | "watching"
   | "recovering"
-  | "max-losses";
+  | "max-losses"
+  | "max-profit";
 
 export type DifferSide = "differ" | "over3" | "under6";
 
@@ -25,7 +26,14 @@ export type DifferTrade = {
   result: "win" | "loss";
   recovery: boolean;
   epoch: number;
+  pnl: number;
 };
+
+// Approximate profit-on-stake payouts (Deriv digit contracts):
+// DIGITDIFF (9 of 10 digits win) → ~11% payout
+// DIGITOVER 3 / DIGITUNDER 6 (6 of 10 digits win) → ~65% payout
+const DIFFER_PAYOUT = 0.11;
+const OVER_UNDER_PAYOUT = 0.65;
 
 type SymbolState = {
   status: DifferStatus;
@@ -34,6 +42,7 @@ type SymbolState = {
   consecutiveLosses: number;
   inRecovery: boolean;
   recoverySide: "over3" | "under6" | null;
+  totalPnl: number;
   lastEpoch: number;
 };
 
@@ -45,6 +54,7 @@ function freshState(baseStake: number): SymbolState {
     consecutiveLosses: 0,
     inRecovery: false,
     recoverySide: null,
+    totalPnl: 0,
     lastEpoch: 0,
   };
 }
@@ -96,6 +106,8 @@ function useDifferSymbol(
   label: string,
   baseStake: number,
   maxLosses: number,
+  maxProfit: number,
+  sharedPnlRef: { current: number }, // mutated synchronously across all 10 symbols — no render lag
   enabled: boolean,
 ) {
   const { ticks, status: wsStatus } = useDerivTicks(symbol, {
@@ -107,6 +119,7 @@ function useDifferSymbol(
   const [leastDigit, setLeastDigit] = useState<number | null>(null);
   const [currentStake, setCurrentStake] = useState(baseStake);
   const [consecutiveLosses, setConsecutiveLosses] = useState(0);
+  const [totalPnl, setTotalPnl] = useState(0);
   const [trades, setTrades] = useState<DifferTrade[]>([]);
 
   const ref = useRef<SymbolState>(freshState(baseStake));
@@ -118,6 +131,7 @@ function useDifferSymbol(
     setLeastDigit(null);
     setCurrentStake(baseStake);
     setConsecutiveLosses(0);
+    setTotalPnl(0);
     setTrades([]);
   }, [enabled, baseStake, symbol]);
 
@@ -126,7 +140,7 @@ function useDifferSymbol(
     if (ticks.length < DIFFER_WINDOW) return;
 
     const r = ref.current;
-    if (r.status === "max-losses") return;
+    if (r.status === "max-losses" || r.status === "max-profit") return;
 
     const lastTick = ticks[ticks.length - 1]!;
     if (lastTick.epoch === r.lastEpoch) return;
@@ -138,6 +152,20 @@ function useDifferSymbol(
     const prev = digits.slice(0, -1);
     const least = leastAppearingDigit(window75);
     setLeastDigit(least);
+
+    // Global max-profit target reached — block ALL new entries, including recovery
+    // entries. Read directly off the shared ref (mutated synchronously whenever any
+    // of the 10 symbols settles a trade) so there is zero render lag: the instant
+    // the aggregate crosses the target, every symbol's very next tick sees it,
+    // even mid-recovery. Trades resolve on the same tick they fire in this
+    // simulation, so there is nothing in-flight to let finish.
+    const isMaxProfit = maxProfit > 0 && sharedPnlRef.current >= maxProfit && sharedPnlRef.current > 0;
+    if (isMaxProfit) {
+      r.status = "max-profit";
+      setStatus("max-profit");
+      r.leastDigit = least;
+      return;
+    }
 
     if (r.inRecovery && r.recoverySide) {
       let fired = false;
@@ -163,6 +191,9 @@ function useDifferSymbol(
 
       if (fired) {
         const isWin = side === "over3" ? currentDigit > barrier : currentDigit < barrier;
+        const pnl = isWin ? +(r.currentStake * OVER_UNDER_PAYOUT).toFixed(2) : -r.currentStake;
+        r.totalPnl = parseFloat((r.totalPnl + pnl).toFixed(2));
+        sharedPnlRef.current = parseFloat((sharedPnlRef.current + pnl).toFixed(2));
         const trade: DifferTrade = {
           id: `${symbol}-rec-${lastTick.epoch}-${Math.random().toString(36).slice(2)}`,
           symbol,
@@ -174,8 +205,10 @@ function useDifferSymbol(
           result: isWin ? "win" : "loss",
           recovery: true,
           epoch: lastTick.epoch,
+          pnl,
         };
         setTrades((p) => [trade, ...p].slice(0, 60));
+        setTotalPnl(r.totalPnl);
 
         if (isWin) {
           r.inRecovery = false;
@@ -213,6 +246,9 @@ function useDifferSymbol(
 
     // Shift detected — fire DIGITDIFF immediately against the new least-appearing digit.
     const isWin = currentDigit !== least;
+    const pnl = isWin ? +(r.currentStake * DIFFER_PAYOUT).toFixed(2) : -r.currentStake;
+    r.totalPnl = parseFloat((r.totalPnl + pnl).toFixed(2));
+    sharedPnlRef.current = parseFloat((sharedPnlRef.current + pnl).toFixed(2));
     const trade: DifferTrade = {
       id: `${symbol}-diff-${lastTick.epoch}-${Math.random().toString(36).slice(2)}`,
       symbol,
@@ -224,8 +260,10 @@ function useDifferSymbol(
       result: isWin ? "win" : "loss",
       recovery: false,
       epoch: lastTick.epoch,
+      pnl,
     };
     setTrades((p) => [trade, ...p].slice(0, 60));
+    setTotalPnl(r.totalPnl);
 
     if (isWin) {
       r.currentStake = baseStake;
@@ -249,7 +287,7 @@ function useDifferSymbol(
       r.status = "recovering";
       setStatus("recovering");
     }
-  }, [ticks, enabled, maxLosses, baseStake, symbol]);
+  }, [ticks, enabled, maxProfit, maxLosses, baseStake, symbol, sharedPnlRef]);
 
   const recentDigits = ticks.slice(-20).map(getLastDigit);
 
@@ -262,6 +300,7 @@ function useDifferSymbol(
     leastDigit,
     currentStake,
     consecutiveLosses,
+    totalPnl,
     recoverySide: ref.current.recoverySide,
     trades,
     recentDigits,
@@ -275,17 +314,29 @@ export type DifferMarket = ReturnType<typeof useDifferSymbol>;
  * volatility indices at once (hook rules forbid calling hooks in a loop, so
  * each symbol gets its own explicit call, mirroring useMasterTrader).
  */
-export function useDiffersPro(baseStake: number, maxLosses: number, enabled: boolean) {
-  const r10 = useDifferSymbol("R_10", "Volatility 10", baseStake, maxLosses, enabled);
-  const r25 = useDifferSymbol("R_25", "Volatility 25", baseStake, maxLosses, enabled);
-  const r50 = useDifferSymbol("R_50", "Volatility 50", baseStake, maxLosses, enabled);
-  const r75 = useDifferSymbol("R_75", "Volatility 75", baseStake, maxLosses, enabled);
-  const r100 = useDifferSymbol("R_100", "Volatility 100", baseStake, maxLosses, enabled);
-  const hz10 = useDifferSymbol("1HZ10V", "Vol 10 (1s)", baseStake, maxLosses, enabled);
-  const hz25 = useDifferSymbol("1HZ25V", "Vol 25 (1s)", baseStake, maxLosses, enabled);
-  const hz50 = useDifferSymbol("1HZ50V", "Vol 50 (1s)", baseStake, maxLosses, enabled);
-  const hz75 = useDifferSymbol("1HZ75V", "Vol 75 (1s)", baseStake, maxLosses, enabled);
-  const hz100 = useDifferSymbol("1HZ100V", "Vol 100 (1s)", baseStake, maxLosses, enabled);
+export function useDiffersPro(
+  baseStake: number,
+  maxProfit: number,
+  maxLosses: number,
+  enabled: boolean,
+) {
+  // Aggregate PnL lives in a single ref shared by all 10 symbol hooks below. Each
+  // symbol mutates it synchronously the instant it settles a trade, and every
+  // symbol reads it fresh on its own next tick — so once the target is crossed by
+  // any one market, every other market (including ones mid-recovery) is blocked
+  // from opening a new entry on its very next tick, with no render-cycle lag.
+  const sharedPnlRef = useRef(0);
+
+  const r10 = useDifferSymbol("R_10", "Volatility 10", baseStake, maxLosses, maxProfit, sharedPnlRef, enabled);
+  const r25 = useDifferSymbol("R_25", "Volatility 25", baseStake, maxLosses, maxProfit, sharedPnlRef, enabled);
+  const r50 = useDifferSymbol("R_50", "Volatility 50", baseStake, maxLosses, maxProfit, sharedPnlRef, enabled);
+  const r75 = useDifferSymbol("R_75", "Volatility 75", baseStake, maxLosses, maxProfit, sharedPnlRef, enabled);
+  const r100 = useDifferSymbol("R_100", "Volatility 100", baseStake, maxLosses, maxProfit, sharedPnlRef, enabled);
+  const hz10 = useDifferSymbol("1HZ10V", "Vol 10 (1s)", baseStake, maxLosses, maxProfit, sharedPnlRef, enabled);
+  const hz25 = useDifferSymbol("1HZ25V", "Vol 25 (1s)", baseStake, maxLosses, maxProfit, sharedPnlRef, enabled);
+  const hz50 = useDifferSymbol("1HZ50V", "Vol 50 (1s)", baseStake, maxLosses, maxProfit, sharedPnlRef, enabled);
+  const hz75 = useDifferSymbol("1HZ75V", "Vol 75 (1s)", baseStake, maxLosses, maxProfit, sharedPnlRef, enabled);
+  const hz100 = useDifferSymbol("1HZ100V", "Vol 100 (1s)", baseStake, maxLosses, maxProfit, sharedPnlRef, enabled);
 
   const markets: DifferMarket[] = [r10, r25, r50, r75, r100, hz10, hz25, hz50, hz75, hz100];
 
@@ -294,6 +345,8 @@ export function useDiffersPro(baseStake: number, maxLosses: number, enabled: boo
     .sort((a, b) => b.epoch - a.epoch)
     .slice(0, 120);
 
+  const totalPnl = parseFloat(markets.reduce((s, m) => s + m.totalPnl, 0).toFixed(2));
+  const isMaxProfit = maxProfit > 0 && totalPnl >= maxProfit && totalPnl > 0;
   const activeCount = markets.filter((m) => m.status === "watching" || m.status === "recovering").length;
   const recoveringCount = markets.filter((m) => m.status === "recovering").length;
   const maxedOutCount = markets.filter((m) => m.status === "max-losses").length;
@@ -303,10 +356,12 @@ export function useDiffersPro(baseStake: number, maxLosses: number, enabled: boo
   return {
     markets,
     allTrades,
+    totalPnl,
     activeCount,
     recoveringCount,
     maxedOutCount,
     readyCount,
     liveCount,
+    isMaxProfit,
   };
 }
