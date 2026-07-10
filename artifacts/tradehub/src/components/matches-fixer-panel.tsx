@@ -36,6 +36,9 @@ const SYMBOLS = [
   { id: "R_75",     label: "Volatility 75"  },
   { id: "R_100",    label: "Volatility 100" },
   { id: "1HZ10V",   label: "Vol 10 (1s)"   },
+  { id: "1HZ25V",   label: "Vol 25 (1s)"   },
+  { id: "1HZ50V",   label: "Vol 50 (1s)"   },
+  { id: "1HZ75V",   label: "Vol 75 (1s)"   },
   { id: "1HZ100V",  label: "Vol 100 (1s)"  },
 ] as const;
 

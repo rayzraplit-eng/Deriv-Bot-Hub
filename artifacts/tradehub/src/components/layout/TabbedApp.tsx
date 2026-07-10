@@ -4,7 +4,6 @@ import { useListAccounts } from "@workspace/api-client-react";
 import { InstallPWAButton } from "@/components/install-pwa-button";
 import Dashboard from "@/pages/dashboard";
 import Journal from "@/pages/journal";
-import { MasterTraderPanel } from "@/components/master-trader-panel";
 import { MatchesFixerInline } from "@/components/matches-fixer-panel";
 import { ReverseOverUnderInline } from "@/components/reverse-over-under-panel";
 import { Over2Under7ProInline }  from "@/components/over2-under7-pro-panel";
@@ -37,16 +36,16 @@ type BotEntry = {
   content:     React.ReactNode;
 };
 
-const BOT_LIST: BotEntry[] = [
+function buildBotList(activeAccount: any): BotEntry[] { return [
   {
-    id:       "master-trader",
-    label:    "Master Trader",
-    sublabel: "10 markets · bias + reversal signals",
-    badge:    "Signal Bot",
+    id:       "manual-trader",
+    label:    "Manual Trader",
+    sublabel: "10 markets · place trades yourself, on demand",
+    badge:    "Manual",
     badgeCls: "border-primary/40 text-primary bg-primary/10",
-    icon:     Brain,
+    icon:     Hand,
     iconCls:  "text-primary",
-    content:  <MasterTraderPanel />,
+    content:  <ManualTradingSection activeAccount={activeAccount} />,
   },
   {
     id:       "matches-fixer",
@@ -98,10 +97,11 @@ const BOT_LIST: BotEntry[] = [
     iconCls:  "text-emerald-400",
     content:  <VirtualOverUnderInline />,
   },
-];
+]; }
 
-function MasterBotPanel() {
-  const [openId, setOpenId] = useState<string | null>("master-trader");
+function MasterBotPanel({ activeAccount }: { activeAccount: any }) {
+  const [openId, setOpenId] = useState<string | null>("manual-trader");
+  const botList = buildBotList(activeAccount);
 
   function toggle(id: string) {
     setOpenId((prev) => (prev === id ? null : id));
@@ -109,7 +109,7 @@ function MasterBotPanel() {
 
   return (
     <div className="space-y-3">
-      {BOT_LIST.map((bot) => {
+      {botList.map((bot) => {
         const isOpen = openId === bot.id;
         const Icon   = bot.icon;
         return (
@@ -246,7 +246,7 @@ export function TabbedApp() {
 function PanelContent({ id, activeAccount }: { id: TabId; activeAccount: any }) {
   switch (id) {
     case "dashboard": return <Dashboard />;
-    case "master":    return <MasterBotPanel />;
+    case "master":    return <MasterBotPanel activeAccount={activeAccount} />;
     case "analisis":  return <AnalisisToolSection />;
     case "trading":   return <ManualTradingSection activeAccount={activeAccount} />;
     case "journal":   return <Journal />;
