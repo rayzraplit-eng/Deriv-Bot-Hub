@@ -16,6 +16,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
+import { BotBacktestSection } from "@/components/bot-backtest-section";
 
 const tradeSchema = z.object({
   symbol: z.string().min(1, "Symbol is required"),
@@ -311,6 +312,8 @@ export default function Journal() {
           </CardContent>
         </Card>
       </div>
+
+      <BotBacktestSection />
 
       <Card className="border-border shadow-md bg-card/50 backdrop-blur-sm rounded-none overflow-hidden">
         <CardContent className="p-0">

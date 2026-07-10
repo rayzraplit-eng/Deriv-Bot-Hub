@@ -152,7 +152,7 @@ function MasterBotPanel({ activeAccount }: { activeAccount: any }) {
 
             {/* ── Accordion body ── */}
             {isOpen && (
-              <div className="px-4 pb-4 pt-1 border-t border-border/30 animate-in fade-in slide-in-from-top-1 duration-200">
+              <div className="px-4 pb-4 pt-1 border-t border-border/30">
                 {bot.content}
               </div>
             )}
